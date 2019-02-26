@@ -1,0 +1,39 @@
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  font: 500 10px 'Wt-Position', sans-serif;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 2px #000;
+
+  background: #000;
+  color: #fff;
+
+  #divActive {
+    position: fixed;
+    left: 8px;
+    top: 8px;
+  }
+
+  #divMidi {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+  }
+
+  #divPath {
+    position: fixed;
+    right: 8px;
+    bottom: 8px;
+
+    text-align: right;
+  }
+
+  #canvas {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
