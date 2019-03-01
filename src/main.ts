@@ -1,16 +1,19 @@
 // == import various modules / stuff ===============================================================
-import { GLCat } from '@fms-cat/glcat-ts';
+import { GL, GLCat } from '@fms-cat/glcat-ts';
 import CONFIG from './config.json';
 import Clock from './libs/clock-realtime.js';
 import * as MathCat from './libs/mathcat';
 import { MidiChain } from './libs/MidiChain';
-import { Pass } from './libs/Pass';
+import { PassDrawContext } from './libs/Pass.js';
 import { PassManagerGUI } from './libs/PassManagerGUI';
+import { ScreenCaptureTexture } from './libs/ScreenCaptureTexture';
 import { Swap, triangleStripQuad } from './libs/ultracat';
-import BackgroundPass from './passes/BackgroundPass';
-import { BloomPass, PreBloomPass, PostBloomPass } from './passes/BloomPasses';
+import { BloomPass, PostBloomPass, PreBloomPass } from './passes/BloomPasses';
+import PlanePass from './passes/PlanePass';
 import { PostPass } from './passes/PostPass';
 import { TrailsComputePass, TrailsRenderPass } from './passes/TrailsPasses';
+import backgroundFrag from './shaders/background.frag';
+import editorFrag from './shaders/editor.frag';
 import fxaaFrag from './shaders/fxaa.frag';
 import inspectorFrag from './shaders/inspector.frag';
 import postFrag from './shaders/post.frag';
@@ -50,6 +53,16 @@ const passManager = new PassManagerGUI( {
 // oh hi
 const vboQuad = glCat.createBuffer()!;
 vboQuad.setVertexbuffer( new Float32Array( triangleStripQuad ) );
+
+// Toby Fox - Dummy!
+const textureDummy = glCat.createTexture()!;
+textureDummy.setTextureFromArray( 1, 1, new Uint8Array( [ 0, 0, 0, 0 ] ) );
+
+// == hi screenCapture =============================================================================
+const screenCaptureTexture = new ScreenCaptureTexture( glCat );
+screenCaptureTexture.getTexture().textureFilter( GL.NEAREST );
+screenCaptureTexture.getTexture().setTextureFromArray( 1, 1, new Uint8Array( [ 255, 0, 255, 255 ] ) ); // hack
+screenCaptureTexture.setup();
 
 // == deal with time ===============================================================================
 let totalFrame = 0;
@@ -149,32 +162,39 @@ const swapPost = new Swap(
   glCat.lazyFramebuffer( width, height, true )!
 );
 
-const passBackground = new BackgroundPass( glCat );
-
-const passTrailsCompute = new TrailsComputePass( {
-  glCat
+const passBackground = new PlanePass( glCat, {
+  frag: backgroundFrag
 } );
+passBackground.matM = MathCat.mat4Apply(
+  MathCat.mat4Translate( [ 0.0, 0.0, -10.0 ] ),
+  MathCat.mat4Scale( [ 40.0, 20.0, 0.0 ] ),
+);
+passBackground.textureShadow = fbShadow.getTexture()!;
 
-const passTrailsRender = new TrailsRenderPass( {
-  glCat,
+const passEditor = new PlanePass( glCat, {
+  frag: editorFrag
+} );
+passEditor.matM = MathCat.mat4Apply(
+  MathCat.mat4Scale( [ 0.4 * 16.0, 0.4 * 9.0, 0.0 ] ),
+);
+passEditor.input = screenCaptureTexture.getTexture();
+passEditor.textureShadow = fbShadow.getTexture()!;
+
+const passTrailsCompute = new TrailsComputePass( glCat );
+
+const passTrailsRender = new TrailsRenderPass( glCat, {
   computePass: passTrailsCompute
 } );
+passTrailsRender.textureShadow = fbShadow.getTexture()!;
 
-const passReturn = new PostPass( {
-  glCat,
-  frag: returnFrag
-} );
-
-const passInspector = new PostPass( {
-  glCat,
+const passInspector = new PostPass( glCat, {
   frag: inspectorFrag,
-  beforeDraw: ( context ) => {
-    context.program.uniform3fv( 'circleColor', [ 1.0, 1.0, 1.0 ] );
-  }
 } );
+passInspector.beforeDraw = ( context: PassDrawContext ) => {
+  context.program.uniform3fv( 'circleColor', [ 1.0, 1.0, 1.0 ] );
+};
 
-const passPreBloom = new PreBloomPass( {
-  glCat,
+const passPreBloom = new PreBloomPass( glCat, {
   width,
   height,
   bias: [ -0.72, -0.67, -0.59 ],
@@ -182,33 +202,25 @@ const passPreBloom = new PreBloomPass( {
   multiplier: 8
 } );
 
-const passBloom = new BloomPass( {
-  glCat,
+const passBloom = new BloomPass( glCat, {
   preBloomPass: passPreBloom
 } );
 
-const passPostBloom = new PostBloomPass( {
-  glCat,
+const passPostBloom = new PostBloomPass( glCat, {
   bloomPass: passBloom
 } );
 
-const passPost = new PostPass( {
-  glCat,
+const passPost = new PostPass( glCat, {
   frag: postFrag,
-  beforeDraw: ( context ) => {
-    context.program.uniform1f( 'barrelAmp', 0.05 );
-  }
 } );
+passPost.beforeDraw = ( context: PassDrawContext ) => {
+  context.program.uniform1f( 'barrelAmp', 0.05 );
+};
 
-const passFxaa = new PostPass( {
-  glCat,
+const passFxaa = new PostPass( glCat, {
   frag: fxaaFrag
 } );
 passFxaa.name = 'FXAA';
-
-// == Toby Fox - Dummy! ============================================================================
-const textureDummy = glCat.createTexture()!;
-textureDummy.setTextureFromArray( 1, 1, new Uint8Array( [ 0, 0, 0, 0 ] ) );
 
 // == loop here ====================================================================================
 const update = () => {
@@ -221,6 +233,7 @@ const update = () => {
   clock.update();
   updateMatrices();
   midiChain.update( clock.deltaTime );
+  screenCaptureTexture.update();
 
   // == let's render this ==========================================================================
   passManager.begin();
@@ -236,15 +249,20 @@ const update = () => {
   // == shadow =====================================================================================
   // glCatPath.render( 'shadow' );
 
+  passTrailsRender.isShadow = true;
   passManager.render( passTrailsRender, {
     target: fbShadow,
-    preDraw: ( context ) => context.glCat.clear( 1.0, 0.0, 0.0, 1.0 ),
-    data: { isShadow: true }
+    preDraw: ( context ) => context.glCat.clear( 1.0, 0.0, 0.0, 1.0 )
   } );
 
-  passManager.render( passBackground, {
+  passEditor.isShadow = true;
+  passManager.render( passEditor, {
     target: fbShadow,
-    data: { isShadow: true }
+  } );
+
+  passBackground.isShadow = true;
+  passManager.render( passBackground, {
+    target: fbShadow
   } );
 
   // glCatPath.render( 'raymarch', {
@@ -297,15 +315,20 @@ const update = () => {
   // } );
 
   // == foreground =================================================================================
+  passTrailsRender.isShadow = false;
   passManager.render( passTrailsRender, {
     target: fbRender,
     preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 1.0 ); },
-    data: { textureShadow: fbShadow.getTexture()!.getTexture() }
   } );
 
-  passManager.render( passBackground, {
+  passEditor.isShadow = false;
+  passManager.render( passEditor, {
     target: fbRender,
-    data: { textureShadow: fbShadow.getTexture()!.getTexture() }
+  } );
+
+  passBackground.isShadow = false;
+  passManager.render( passBackground, {
+    target: fbRender
   } );
 
   // glCatPath.render( 'target' );
@@ -382,7 +405,7 @@ const update = () => {
 
   passPost.input = swapPost.o.getTexture()!;
   passManager.render( passPost, {
-    target: swapPost.i
+    target: swapPost.i,
   } );
   swapPost.swap();
 

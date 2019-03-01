@@ -3,34 +3,29 @@ import { Pass, PassDrawContext } from '../libs/Pass';
 import { triangleStripQuad } from '../libs/ultracat';
 import quadVert from '../shaders/quad.vert';
 
-export interface PostPassParams {
-  glCat: GLCat;
-  vert?: string;
-  frag: string;
-  beforeDraw?: ( context: PassDrawContext ) => void;
-}
-
+// == export begin =================================================================================
 export class PostPass extends Pass {
   public input?: GLCatTexture;
+  public beforeDraw?: ( context: PassDrawContext ) => void;
   protected __vboQuad: GLCatBuffer;
-  protected __beforeDraw?: ( context: PassDrawContext ) => void;
 
-  constructor( params: PostPassParams ) {
-    super( params.glCat );
+  constructor( glCat: GLCat, params: {
+    vert?: string;
+    frag: string;
+  } ) {
+    super( glCat );
 
     this.name = 'Post';
 
     this.__blend = [ GL.ONE, GL.ZERO ];
 
-    this.__program = params.glCat.lazyProgram(
+    this.__program = glCat.lazyProgram(
       params.vert || quadVert,
       params.frag
     )!;
 
-    this.__vboQuad = params.glCat.createBuffer()!;
+    this.__vboQuad = glCat.createBuffer()!;
     this.__vboQuad.setVertexbuffer( new Float32Array( triangleStripQuad ) );
-
-    this.__beforeDraw = params.beforeDraw;
   }
 
   public dispose() {
@@ -39,17 +34,17 @@ export class PostPass extends Pass {
   }
 
   protected __draw( context: PassDrawContext ) {
-    if ( this.__beforeDraw ) { this.__beforeDraw( context ); }
+    if ( this.beforeDraw ) { this.beforeDraw( context ); }
 
     const { glCat, program } = context;
     const gl = glCat.getRenderingContext();
 
     program.attribute( 'p', this.__vboQuad, 2 );
-    program.uniformTexture(
-      'sampler0',
-      this.input ? this.input.getTexture() : null,
-      0
-    );
+    if ( this.input ) {
+      program.uniformTexture( 'sampler0', this.input.getTexture(), 0 );
+    } else {
+      program.uniformTexture( 'sampler0', glCat.getDummyTexture()!.getTexture(), 0 );
+    }
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }
 }

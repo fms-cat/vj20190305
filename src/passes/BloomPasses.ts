@@ -16,19 +16,17 @@ export class PreBloomPass extends PostPass {
   private __height: number;
   private __multiplier: number;
 
-  constructor( params: {
-    glCat: GLCat;
+  constructor( glCat: GLCat, params: {
     width: number;
     height: number;
     multiplier?: number;
     bias?: vec3;
     factor?: vec3;
   } ) {
-    const { glCat, width, height } = params;
+    const { width, height } = params;
     const multiplier = params.multiplier || 4;
 
-    super( {
-      glCat,
+    super( glCat, {
       frag: `#define MULTIPLIER ${ Math.floor( multiplier ) }\n${bloomPreFrag}`
     } );
 
@@ -72,14 +70,10 @@ export class BloomPass extends PostPass {
   private __fbV: GLCatFramebuffer;
   private __preBloomPass: PreBloomPass;
 
-  constructor( params: {
-    glCat: GLCat;
+  constructor( glCat: GLCat, params: {
     preBloomPass: PreBloomPass;
   } ) {
-    const { glCat } = params;
-
-    super( {
-      glCat,
+    super( glCat, {
       frag: gaussFrag
     } );
 
@@ -133,14 +127,10 @@ export class BloomPass extends PostPass {
 export class PostBloomPass extends PostPass {
   private __bloomPass: BloomPass;
 
-  constructor( params: {
-    glCat: GLCat;
+  constructor( glCat: GLCat, params: {
     bloomPass: BloomPass;
   } ) {
-    const { glCat } = params;
-
-    super( {
-      glCat,
+    super( glCat, {
       frag: bloomPostFrag
     } );
 

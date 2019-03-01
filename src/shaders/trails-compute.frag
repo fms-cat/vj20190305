@@ -150,6 +150,7 @@ void main() {
     dt = time - timing;
 
     pos.xyz = 2.0 * normalize( randomSphere( seed ) );
+    pos.z -= 5.0;
 
     vel.xyz = 0.1 * randomSphere( seed );
     vel.w = 1.0; // jumping flag
@@ -164,7 +165,8 @@ void main() {
   vel.zx += dt * 40.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( pos.xz );
 
   // sphere
-  vel.xyz += dt * 40.0 * noiseScale * ( 2.0 - length( pos.xyz ) ) * normalize( pos.xyz );
+  vec3 dist = pos.xyz + vec3( 0.0, 0.0, 5.0 );
+  vel.xyz += dt * 40.0 * noiseScale * ( 2.0 - length( dist ) ) * normalize( dist );
 
   // noise field
   vel.xyz += 100.0 * noiseScale * vec3(

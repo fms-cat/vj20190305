@@ -8,9 +8,9 @@
   dependencies:
     commander "^2.15.1"
 
-"@fms-cat/glcat-ts@^0.1.9":
-  version "0.1.9"
-  resolved "https://registry.yarnpkg.com/@fms-cat/glcat-ts/-/glcat-ts-0.1.9.tgz#0ad1342e20bfafe36fc317b145577f167e574803"
+"@fms-cat/glcat-ts@^0.1.14":
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/@fms-cat/glcat-ts/-/glcat-ts-0.1.14.tgz#4b74969615b622198dcef84c5b979f70c52a32e1"
 
 "@types/webmidi@^2.0.3":
   version "2.0.3"

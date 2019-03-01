@@ -1,4 +1,4 @@
-import { GLCat, GLCatBuffer } from '@fms-cat/glcat-ts';
+import { GLCat, GLCatBuffer, GLCatTexture } from '@fms-cat/glcat-ts';
 import { HistoryMeanCalculator } from './HistoryMeanCalculator';
 import { Pass, PassDrawContext, PassRenderParams } from './Pass';
 import { PassManager, PassManagerParams } from './PassManager';
@@ -11,6 +11,7 @@ export interface PassManagerGUIParams extends PassManagerParams {
 }
 
 class ReturnPass extends Pass {
+  public input?: GLCatTexture;
   private __vboQuad: GLCatBuffer;
 
   constructor( glCat: GLCat ) {
@@ -34,7 +35,9 @@ class ReturnPass extends Pass {
     const gl = glCat.getRenderingContext();
 
     program.attribute( 'p', this.__vboQuad, 2 );
-    program.uniformTexture( 's', params.data.input, 0 );
+    if ( this.input ) {
+      program.uniformTexture( 's', this.input.getTexture(), 0 );
+    }
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }
 }
@@ -50,7 +53,7 @@ export class PassManagerGUI extends PassManager {
   private __viewIndex: number = 0;
   private __canvas: HTMLCanvasElement;
   private __resizeCanvas: boolean = false;
-  private __returnPass: Pass;
+  private __returnPass: ReturnPass;
   private __gui: {
     parent: HTMLElement;
     info: HTMLDivElement;
@@ -127,10 +130,10 @@ ${ this.__totalFrames } frames`;
         height = this.__canvas.height = params.width || texture.getHeight();
       }
 
+      this.__returnPass.input = texture;
       super.render( this.__returnPass, {
         width,
         height,
-        data: { input: texture.getTexture() }
       } );
     }
   }

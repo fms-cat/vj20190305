@@ -5,14 +5,12 @@ export interface PassDrawContext {
   glCat: GLCat;
   target: GLCatFramebuffer | null;
   program: GLCatProgram;
-  data: any;
 }
 
 export interface PassRenderParams {
   width?: number;
   height?: number;
   target?: GLCatFramebuffer;
-  data?: any;
   preDraw?: ( context: PassDrawContext ) => void;
   postDraw?: ( context: PassDrawContext ) => void;
 }
@@ -112,8 +110,7 @@ export abstract class Pass {
       gl: this.__glCat.getRenderingContext(),
       glCat: this.__glCat,
       target,
-      program: this.__program,
-      data: params.data || {}
+      program: this.__program
     };
 
     if ( params.preDraw ) {

@@ -1,23 +1,30 @@
 // == load modules =================================================================================
-import { GLCat, GLCatBuffer } from '@fms-cat/glcat-ts';
+import { GLCat, GLCatBuffer, GLCatTexture } from '@fms-cat/glcat-ts';
 import * as MathCat from '../libs/mathcat';
 import { Pass, PassDrawContext } from '../libs/Pass';
 import * as UltraCat from '../libs/ultracat';
-import backgroundFrag from '../shaders/background.frag';
 import objectVert from '../shaders/object.vert';
+import returnFrag from '../shaders/return.frag';
 
 // == export begin =================================================================================
-export default class BackgroundPass extends Pass {
+export default class PlanePass extends Pass {
+  public matM: MathCat.mat4 = MathCat.mat4Identity();
+  public input?: GLCatTexture;
+  public isShadow?: boolean;
+  public textureShadow?: GLCatTexture;
+  public beforeDraw?: ( context: PassDrawContext ) => void;
   protected __vboPos: GLCatBuffer;
   protected __vboNor: GLCatBuffer;
   protected __vboUv: GLCatBuffer;
 
-  constructor( glCat: GLCat ) {
+  constructor( glCat: GLCat, params: {
+    frag?: string
+  } = {} ) {
     super( glCat );
 
-    this.name = 'Background';
+    this.name = 'Plane';
 
-    this.__program = glCat.lazyProgram( objectVert, backgroundFrag );
+    this.__program = glCat.lazyProgram( objectVert, params.frag || returnFrag );
 
     this.__vboPos = glCat.createBuffer()!;
     this.__vboPos.setVertexbuffer( new Float32Array( UltraCat.triangleStripQuad3 ) );
@@ -37,20 +44,29 @@ export default class BackgroundPass extends Pass {
   }
 
   protected __draw( context: PassDrawContext ) {
-    const { program, gl } = context;
+    if ( this.beforeDraw ) { this.beforeDraw( context ); }
+
+    const { gl, glCat, program } = context;
 
     program.attribute( 'pos', this.__vboPos, 3 );
     program.attribute( 'nor', this.__vboNor, 3 );
     program.attribute( 'uv', this.__vboUv, 2 );
 
-    let matM = MathCat.mat4Identity();
-    matM = MathCat.mat4Apply( MathCat.mat4ScaleXYZ( 20.0 ), matM );
-    matM = MathCat.mat4Apply( MathCat.mat4Translate( [ 0.0, 0.0, -5.0 ] ), matM );
-    program.uniformMatrix4fv( 'matM', matM );
+    program.uniformMatrix4fv( 'matM', this.matM );
 
-    program.uniform1i( 'isShadow', context.data.isShadow ? 1 : 0 );
+    program.uniform1i( 'isShadow', this.isShadow ? 1 : 0 );
 
-    program.uniformTexture( 'samplerShadow', context.data.textureShadow, 2 );
+    if ( this.input ) {
+      program.uniformTexture( 'sampler0', this.input.getTexture(), 0 );
+    } else {
+      program.uniformTexture( 'sampler0', glCat.getDummyTexture()!.getTexture(), 0 );
+    }
+
+    if ( !this.isShadow && this.textureShadow ) {
+      program.uniformTexture( 'samplerShadow', this.textureShadow.getTexture(), 1 );
+    } else {
+      program.uniformTexture( 'samplerShadow', glCat.getDummyTexture()!.getTexture(), 1 );
+    }
 
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }

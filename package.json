@@ -8,7 +8,7 @@
     "build": "webpack --mode production"
   },
   "devDependencies": {
-    "@fms-cat/glcat-ts": "^0.1.9",
+    "@fms-cat/glcat-ts": "^0.1.14",
     "@types/webmidi": "^2.0.3",
     "babel-core": "^6.26.3",
     "babel-loader": "^7.1.5",

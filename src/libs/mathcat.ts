@@ -131,9 +131,24 @@ export function quatAngleAxis( angle: number, axis: vec3 ): quat {
 }
 
 /**
- * Apply two mat4s.
+ * Apply mat4s.
  */
-export function mat4Apply( a: mat4, b: mat4 ): mat4 {
+export function mat4Apply( ...array: mat4[] ): mat4 {
+  if ( array.length === 0 ) {
+    return mat4Identity();
+  } else if ( array.length === 1 ) {
+    return array[ 0 ];
+  }
+
+  const arr = array.concat();
+  let a: mat4;
+  const b = arr.pop()!;
+  if ( arr.length === 1 ) {
+    a = arr.pop()!;
+  } else {
+    a = mat4Apply( ...array );
+  }
+
   return [
     a[ 0 ] * b[ 0 ] + a[ 4 ] * b[ 1 ] + a[ 8 ] * b[ 2 ] + a[ 12 ] * b[ 3 ],
     a[ 1 ] * b[ 0 ] + a[ 5 ] * b[ 1 ] + a[ 9 ] * b[ 2 ] + a[ 13 ] * b[ 3 ],

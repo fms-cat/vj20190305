@@ -73,6 +73,7 @@ export class MidiChain {
 
   private __createParam( key: string ) {
     this.__params[ key ] = new MidiChainValue();
+    this.__params[ key ].value = this.__params[ key ].rawValue = this.__storage[ key ] || 0.0;
     this.__updateDOM();
   }
 

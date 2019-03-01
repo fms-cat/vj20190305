@@ -1,5 +1,5 @@
 // == load modules =================================================================================
-import { GLCat, GLCatBuffer, GLCatFramebuffer } from '@fms-cat/glcat-ts';
+import { GLCat, GLCatBuffer, GLCatFramebuffer, GLCatTexture } from '@fms-cat/glcat-ts';
 import { Pass, PassDrawContext } from '../libs/Pass';
 import RandomTexture from '../libs/RandomTexture';
 import * as UltraCat from '../libs/ultracat';
@@ -19,16 +19,12 @@ export class TrailsComputePass extends PostPass {
   protected __randomTexture: RandomTexture;
   protected __randomTextureStatic: RandomTexture;
 
-  constructor( params: {
-    glCat: GLCat;
+  constructor( glCat: GLCat, params: {
     trailLength?: number;
     trails?: number;
     seed?: number;
-  } ) {
-    const { glCat } = params;
-
-    super( {
-      glCat,
+  } = {} ) {
+    super( glCat, {
       frag: trailsComputeFrag
     } );
 
@@ -91,18 +87,17 @@ export class TrailsComputePass extends PostPass {
 
 // == pass for render ==============================================================================
 export class TrailsRenderPass extends Pass {
+  public isShadow?: boolean;
+  public textureShadow?: GLCatTexture;
   protected __computePass: TrailsComputePass;
   protected __vboComputeU: GLCatBuffer;
   protected __vboComputeV: GLCatBuffer;
   protected __vboTriIndex: GLCatBuffer;
   protected __ibo: GLCatBuffer;
 
-  constructor( params: {
-    glCat: GLCat,
+  constructor( glCat: GLCat, params: {
     computePass: TrailsComputePass
   } ) {
-    const { glCat, computePass } = params;
-
     super( glCat );
 
     this.name = 'Trails Render';
@@ -112,7 +107,7 @@ export class TrailsRenderPass extends Pass {
       trailsRenderFrag
     );
 
-    this.__computePass = computePass;
+    this.__computePass = params.computePass;
     const { trailLength, trails } = this.__computePass;
 
     this.__vboComputeU = glCat.createBuffer()!;
@@ -187,20 +182,26 @@ export class TrailsRenderPass extends Pass {
 
     program.uniform2fv( 'resolutionPcompute', [ trailLength * PIXELS_PER_PARTICLE, trails ] );
 
-    program.uniform1i( 'isShadow', context.data.isShadow ? 1 : 0 );
+    program.uniform1i( 'isShadow', this.isShadow ? 1 : 0 );
 
     program.uniform1f( 'trailShaker', 0.0 );
     program.uniform1f( 'colorVar', 0.5 );
     program.uniform1f( 'colorOffset', 0.7 );
+
+    if ( !this.isShadow && this.textureShadow ) {
+      program.uniformTexture( 'samplerShadow', this.textureShadow.getTexture(), 1 );
+    } else {
+      program.uniformTexture( 'samplerShadow', glCat.getDummyTexture()!.getTexture(), 1 );
+    }
 
     program.uniformTexture(
       'samplerPcompute',
       this.__computePass.framebuffer!.getTexture()!.getTexture(),
       0
     );
-    program.uniformTexture( 'samplerRandom', randomTexture.getTexture(), 1 );
-    program.uniformTexture( 'samplerRandomStatic', randomTextureStatic.getTexture(), 2 );
-    program.uniformTexture( 'samplerShadow', context.data.textureShadow, 3 );
+
+    program.uniformTexture( 'samplerRandom', randomTexture.getTexture(), 2 );
+    program.uniformTexture( 'samplerRandomStatic', randomTextureStatic.getTexture(), 3 );
 
     const ext = glCat.getExtension( 'ANGLE_instanced_arrays' );
     gl.bindBuffer( gl.ELEMENT_ARRAY_BUFFER, this.__ibo.getBuffer() );

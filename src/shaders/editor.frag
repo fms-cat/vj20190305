@@ -21,9 +21,12 @@ uniform mat4 matVL;
 uniform float time;
 uniform vec4 wave;
 
+uniform float colorOffset;
 uniform bool isShadow;
 uniform float audioReactive;
+uniform float chroma;
 
+uniform sampler2D sampler0;
 uniform sampler2D samplerShadow;
 
 // == common =======================================================================================
@@ -33,6 +36,10 @@ vec3 catColor( float _p ) {
     cos( _p + PI / 3.0 * 4.0 ),
     cos( _p + PI / 3.0 * 2.0 )
   );
+}
+
+float rgb2gray( vec3 c ) {
+  return 0.299 * c.x + 0.587 * c.y + 0.114 * c.z;
 }
 
 // == shadow cast ==================================================================================
@@ -73,23 +80,19 @@ float shadow() {
 
 // == main procedure ===============================================================================
 void main() {
+  vec2 uv = vUv.xy;
+  uv.y = 1.0 - uv.y;
+  vec4 tex = texture2D( sampler0, uv );
+
+  vec3 col = pow( tex.xyz, vec3( 2.2 ) );
+  float alpha = col.y - col.x - col.z;
+  if ( 0.5 < alpha ) { discard; }
+
   if ( isShadow ) {
     float depth = length( vPos - lightPos );
     gl_FragColor = vec4( calcDepthL( vPos - lightPos ), 0.0, 0.0, 1.0 );
     return;
   }
-
-  vec3 lightDir = normalize( vPos - lightPos );
-  float d = dot( -vNor, lightDir );
-
-  float scroll = step( 0.0, sin( vUv.y * 50.0 + abs( vUv.x - 0.5 ) * 30.0 - time * 3.0 ) );
-  float reactive = 1.0 + audioReactive * sin( 20.0 * smoothstep( -60.0, -0.0, wave.y ) );
-  vec3 accentColor = vec3( 1.0, 0.1, 0.5 );
-  vec3 col = reactive * mix(
-    accentColor,
-    vec3( 0.04 ),
-    scroll
-  );
 
   float shadowFactor = shadow();
   col *= mix( 0.1, 1.0, shadowFactor );
