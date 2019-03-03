@@ -19,7 +19,7 @@ export class ClockRealtime extends Clock {
       this.__deltaTime = this.time - prevTime;
     } else {
       this.__rtTime = this.time;
-      this.__rtDate = +new Date();
+      this.__rtDate = performance.now();
       this.__deltaTime = 0.0;
     }
   }
@@ -31,7 +31,7 @@ export class ClockRealtime extends Clock {
     super.setTime( time );
 
     this.__rtTime = this.time;
-    this.__rtDate = +new Date();
+    this.__rtDate = performance.now();
   }
 }
 
