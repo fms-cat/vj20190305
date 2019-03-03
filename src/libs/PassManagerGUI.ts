@@ -18,8 +18,8 @@ class ReturnPass extends Pass {
     super( glCat );
 
     this.__program = glCat.lazyProgram(
-      'attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}',
-      'precision highp float;uniform vec2 resolution;uniform sampler2D s;void main(){gl_FragColor=texture2D(s,gl_FragCoord.xy/resolution);}', // tslint:disable-line
+      require( '../shaders/quad.vert' ),
+      require( '../shaders/inspector.frag' ),
     );
 
     this.__vboQuad = glCat.createBuffer()!;
@@ -35,8 +35,9 @@ class ReturnPass extends Pass {
     const gl = glCat.getRenderingContext();
 
     program.attribute( 'p', this.__vboQuad, 2 );
+    program.uniform3f( 'circleColor', 1.0, 1.0, 1.0 );
     if ( this.input ) {
-      program.uniformTexture( 's', this.input.getTexture(), 0 );
+      program.uniformTexture( 'sampler0', this.input.getTexture(), 0 );
     }
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }
@@ -74,9 +75,13 @@ export class PassManagerGUI extends PassManager {
   public begin() {
     this.__currentPasses = 0;
     this.__frameBeginTime = performance.now();
+
+    super.begin();
   }
 
   public end() {
+    super.end();
+
     this.__gui.range.max = `${ Math.max( parseInt( this.__gui.range.max, 10 ), this.__currentPasses ) }`;
 
     const now = performance.now();

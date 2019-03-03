@@ -2,6 +2,9 @@
 #define TAU 6.283185307
 #define saturate(i) clamp(i,0.,1.)
 #define linearstep(a,b,x) saturate(((x)-(a))/((b)-(a)))
+#define lofi(i,m) (floor((i)/(m))*(m))
+
+#extension GL_EXT_draw_buffers : require
 
 precision highp float;
 
@@ -27,75 +30,58 @@ uniform float audioReactive;
 uniform float chroma;
 
 uniform sampler2D sampler0;
-uniform sampler2D samplerShadow;
 
 // == common =======================================================================================
-vec3 catColor( float _p ) {
-  return 0.5 + 0.5 * vec3(
-    cos( _p ),
-    cos( _p + PI / 3.0 * 4.0 ),
-    cos( _p + PI / 3.0 * 2.0 )
-  );
+vec3 catColor( float t ) {
+  return 0.5 + 0.5 * cos( t + vec3( 0.0, 4.0, 2.0 ) * PI / 3.0 );
+}
+
+float fractSin( float v ) {
+  return fract( 17.351 * sin( 27.119 * v ) );
 }
 
 float rgb2gray( vec3 c ) {
   return 0.299 * c.x + 0.587 * c.y + 0.114 * c.z;
 }
 
-// == shadow cast ==================================================================================
-float calcDepth( float z ) {
-  return linearstep( perspNear, perspFar, z );
-}
-
-float calcDepthL( vec3 v ) {
-  return calcDepth( dot( normalize( cameraTar - lightPos ), v ) );
-}
-
-// == shadow receive ===============================================================================
-float shadow() {
-  vec3 lig = vPos - lightPos;
-  float d = max( 0.001, dot( -vNor, normalize( lig ) ) );
-
-  vec4 pl = matPL * matVL * vec4( vPos, 1.0 );
-  vec2 uv = pl.xy / pl.w * 0.5 + 0.5;
-
-  float dc = calcDepthL( lig );
-  float ret = 0.0;
-  for ( int iy = -1; iy <= 1; iy ++ ) {
-    for ( int ix = -1; ix <= 1; ix ++ ) {
-      vec2 uv = uv + vec2( float( ix ), float ( iy ) ) * 1E-3;
-      float proj = texture2D( samplerShadow, uv ).x;
-      float bias = 0.001 + ( 1.0 - d ) * 0.003;
-
-      float dif = mix(
-        smoothstep( bias * 2.0, bias, abs( dc - proj ) ),
-        1.0,
-        smoothstep( 0.4, 0.5, max( abs( uv.x - 0.5 ), abs( uv.y - 0.5 ) ) )
-      );
-      ret += dif / 9.0;
-    }
-  }
-  return ret;
+// == chromakey sampler ============================================================================
+vec4 chromaTex( vec2 uv ) {
+  vec4 tex = texture2D( sampler0, uv );
+  vec3 col = pow( tex.xyz, vec3( 2.2 ) );
+  float alpha = col.x + col.z - col.y;
+  return vec4( col, 1.0 ) * step( -0.1, alpha );
 }
 
 // == main procedure ===============================================================================
 void main() {
   vec2 uv = vUv.xy;
   uv.y = 1.0 - uv.y;
-  vec4 tex = texture2D( sampler0, uv );
 
-  vec3 col = pow( tex.xyz, vec3( 2.2 ) );
-  float alpha = col.y - col.x - col.z;
-  if ( 0.5 < alpha ) { discard; }
+  float pos = 1.6 * uv.x + 0.9 * uv.y;
+  float seed = lofi( pos, 0.1 ) + lofi( uv.y, 0.23 );
+  vec2 displace = (
+    mod(
+      fractSin( seed )
+      + ( 0.1 + fractSin( seed / 0.7 ) ) * pos
+      + 0.1 * time
+    , 1.0 + fractSin( seed / 0.41 ) ) < 0.04
+    ? 0.01 * sin( seed * vec2( 120.0, 100.0 ) )
+    : vec2( 0.0 )
+  );
+
+  vec4 tex = vec4( 0.0 );
+  tex += vec4( 1.0, 0.0, 0.0, 1.0 ) * chromaTex( uv + displace * 1.0 );
+  tex += vec4( 0.0, 1.0, 0.0, 1.0 ) * chromaTex( uv + displace * 1.7 );
+  tex += vec4( 0.0, 0.0, 1.0, 1.0 ) * chromaTex( uv + displace * 2.4 );
+  if ( tex.w == 0.0 ) { discard; }
+  vec3 col = tex.xyz;
 
   if ( isShadow ) {
-    float depth = length( vPos - lightPos );
-    gl_FragColor = vec4( calcDepthL( vPos - lightPos ), 0.0, 0.0, 1.0 );
+    gl_FragData[ 0 ] = vec4( vPos, 1.0 );
     return;
   }
 
-  float shadowFactor = shadow();
-  col *= mix( 0.1, 1.0, shadowFactor );
-
-  gl_FragColor = vec4( col, 1.0 );
+  gl_FragData[ 0 ] = vec4( col, 1.0 );
+  gl_FragData[ 1 ] = vec4( vPos, 1.0 );
+  gl_FragData[ 2 ] = vec4( vNor, 1.0 );
 }

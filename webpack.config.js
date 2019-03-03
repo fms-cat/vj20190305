@@ -54,7 +54,6 @@ module.exports = ( env, argv ) => {
       } ),
       ...( DEBUG ? [
         new webpack.NamedModulesPlugin(),
-        new webpack.HotModuleReplacementPlugin(),
         new ForkTsCheckerWebpackPlugin( { checkSyntacticErrors: true } ),
       ] : [] ),
     ],

@@ -1,4 +1,5 @@
-#define PARTICLE_LIFE_LENGTH 3.0
+#define PARTICLE_LIFE_LENGTH 5.0
+#define SPHERE_RADIUS 2.0
 
 #define HUGE 9E16
 #define PI 3.14159265
@@ -149,10 +150,10 @@ void main() {
   ) {
     dt = time - timing;
 
-    pos.xyz = 2.0 * normalize( randomSphere( seed ) );
+    pos.xyz = SPHERE_RADIUS * normalize( randomSphere( seed ) );
     pos.z -= 5.0;
 
-    vel.xyz = 0.1 * randomSphere( seed );
+    vel.xyz = 1.0 * randomSphere( seed );
     vel.w = 1.0; // jumping flag
 
     pos.w = 1.0; // life
@@ -161,12 +162,13 @@ void main() {
   }
 
   // == update particles ===========================================================================
+  vec3 posFromSphereCenter = pos.xyz + vec3( 0.0, 0.0, 5.0 );
+
   // spin around center
-  vel.zx += dt * 40.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( pos.xz );
+  // vel.zx += dt * 30.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( posFromSphereCenter.xz );
 
   // sphere
-  vec3 dist = pos.xyz + vec3( 0.0, 0.0, 5.0 );
-  vel.xyz += dt * 40.0 * noiseScale * ( 2.0 - length( dist ) ) * normalize( dist );
+  // vel.xyz += dt * 40.0 * noiseScale * ( SPHERE_RADIUS - length( posFromSphereCenter ) ) * normalize( posFromSphereCenter );
 
   // noise field
   vel.xyz += 100.0 * noiseScale * vec3(
@@ -177,6 +179,9 @@ void main() {
 
   // resistance
   vel *= exp( -10.0 * dt );
+
+  // z
+  pos.z += 2.0 * dt;
 
   pos.xyz += velScale * vel.xyz * dt;
   pos.w -= dt / PARTICLE_LIFE_LENGTH;

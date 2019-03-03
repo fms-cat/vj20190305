@@ -5,7 +5,7 @@ import quadVert from '../shaders/quad.vert';
 
 // == export begin =================================================================================
 export class PostPass extends Pass {
-  public input?: GLCatTexture;
+  public inputTextures: { [ name: string ]: GLCatTexture } = {};
   public beforeDraw?: ( context: PassDrawContext ) => void;
   protected __vboQuad: GLCatBuffer;
 
@@ -33,6 +33,13 @@ export class PostPass extends Pass {
     this.__vboQuad.dispose();
   }
 
+  public setProgram( shaders: { vert?: string, frag: string } ) {
+    super.setProgram( {
+      vert: shaders.vert || quadVert,
+      frag: shaders.frag
+    } );
+  }
+
   protected __draw( context: PassDrawContext ) {
     if ( this.beforeDraw ) { this.beforeDraw( context ); }
 
@@ -40,11 +47,15 @@ export class PostPass extends Pass {
     const gl = glCat.getRenderingContext();
 
     program.attribute( 'p', this.__vboQuad, 2 );
-    if ( this.input ) {
-      program.uniformTexture( 'sampler0', this.input.getTexture(), 0 );
-    } else {
-      program.uniformTexture( 'sampler0', glCat.getDummyTexture()!.getTexture(), 0 );
-    }
+
+    Object.keys( this.inputTextures ).forEach( ( name, i ) => {
+      program.uniformTexture(
+        name,
+        this.inputTextures[ name ].getTexture(),
+        i
+      );
+    } );
+
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }
 }

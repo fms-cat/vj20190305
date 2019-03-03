@@ -1,10 +1,10 @@
 // == import various modules / stuff ===============================================================
 import { GL, GLCat } from '@fms-cat/glcat-ts';
 import CONFIG from './config.json';
-import Clock from './libs/clock-realtime.js';
+import Clock from './libs/clock-realtime';
 import * as MathCat from './libs/mathcat';
 import { MidiChain } from './libs/MidiChain';
-import { PassDrawContext } from './libs/Pass.js';
+import { PassDrawContext } from './libs/Pass';
 import { PassManagerGUI } from './libs/PassManagerGUI';
 import { ScreenCaptureTexture } from './libs/ScreenCaptureTexture';
 import { Swap, triangleStripQuad } from './libs/ultracat';
@@ -12,12 +12,6 @@ import { BloomPass, PostBloomPass, PreBloomPass } from './passes/BloomPasses';
 import PlanePass from './passes/PlanePass';
 import { PostPass } from './passes/PostPass';
 import { TrailsComputePass, TrailsRenderPass } from './passes/TrailsPasses';
-import backgroundFrag from './shaders/background.frag';
-import editorFrag from './shaders/editor.frag';
-import fxaaFrag from './shaders/fxaa.frag';
-import inspectorFrag from './shaders/inspector.frag';
-import postFrag from './shaders/post.frag';
-import returnFrag from './shaders/return.frag';
 import './styles/main.scss';
 
 // == we are still struggling by this ==============================================================
@@ -43,6 +37,7 @@ glCat.getExtension( 'OES_texture_float', true );
 glCat.getExtension( 'OES_texture_float_linear', true );
 glCat.getExtension( 'EXT_frag_depth', true );
 glCat.getExtension( 'ANGLE_instanced_arrays', true );
+const extDrawBuffers = glCat.getExtension( 'WEBGL_draw_buffers', true );
 
 const passManager = new PassManagerGUI( {
   glCat,
@@ -80,7 +75,8 @@ const perspFov = 70.0;
 const perspNear = 0.01;
 const perspFar = 100.0;
 
-const lightPos: MathCat.vec3 = [ 0.0, 5.0, 5.0 ]; // this is pretty random
+const lightPos: MathCat.vec3 = [ 0.0, 5.0, 10.0 ]; // this is pretty random
+const lightCol: MathCat.vec3 = [ 1.0, 1.0, 1.0 ]; // h
 
 const shadowReso = CONFIG.shadowReso; // texture size for shadow buffer
 
@@ -139,6 +135,7 @@ passManager.globalPreDraw = ( context ) => {
   context.program.uniform1f( 'perspFar', perspFar );
 
   context.program.uniform3fv( 'lightPos', lightPos );
+  context.program.uniform3fv( 'lightCol', lightCol );
 
   context.program.uniformMatrix4fv( 'matP', matP );
   context.program.uniformMatrix4fv( 'matV', matV );
@@ -155,7 +152,7 @@ passManager.globalPreDraw = ( context ) => {
 };
 
 // == passes and framebuffers ======================================================================
-const fbRender = glCat.lazyFramebuffer( width, height, true )!;
+const fbRender = glCat.lazyDrawbuffers( width, height, 3, true )!;
 const fbShadow = glCat.lazyFramebuffer( shadowReso, shadowReso, true )!;
 const swapPost = new Swap(
   glCat.lazyFramebuffer( width, height, true )!,
@@ -163,36 +160,79 @@ const swapPost = new Swap(
 );
 
 const passBackground = new PlanePass( glCat, {
-  frag: backgroundFrag
+  frag: require( './shaders/background.frag' )
 } );
 passBackground.matM = MathCat.mat4Apply(
   MathCat.mat4Translate( [ 0.0, 0.0, -10.0 ] ),
-  MathCat.mat4Scale( [ 40.0, 20.0, 0.0 ] ),
+  MathCat.mat4Scale( [ 40.0, 20.0, 1.0 ] ),
 );
-passBackground.textureShadow = fbShadow.getTexture()!;
+if ( module.hot ) {
+  module.hot.accept( './shaders/background.frag', () => {
+    const frag = require( './shaders/background.frag' );
+    passBackground.setProgram( { frag } );
+  } );
+}
 
 const passEditor = new PlanePass( glCat, {
-  frag: editorFrag
+  frag: require( './shaders/editor.frag' )
 } );
 passEditor.matM = MathCat.mat4Apply(
-  MathCat.mat4Scale( [ 0.4 * 16.0, 0.4 * 9.0, 0.0 ] ),
+  MathCat.mat4Scale( [ 0.4 * 16.0, 0.4 * 9.0, 1.0 ] ),
 );
 passEditor.input = screenCaptureTexture.getTexture();
-passEditor.textureShadow = fbShadow.getTexture()!;
+if ( module.hot ) {
+  module.hot.accept( './shaders/editor.frag', () => {
+    const frag = require( './shaders/editor.frag' );
+    passEditor.setProgram( { frag } );
+  } );
+}
 
 const passTrailsCompute = new TrailsComputePass( glCat );
 
 const passTrailsRender = new TrailsRenderPass( glCat, {
   computePass: passTrailsCompute
 } );
-passTrailsRender.textureShadow = fbShadow.getTexture()!;
 
 const passInspector = new PostPass( glCat, {
-  frag: inspectorFrag,
+  frag: require( './shaders/inspector.frag' ),
 } );
 passInspector.beforeDraw = ( context: PassDrawContext ) => {
   context.program.uniform3fv( 'circleColor', [ 1.0, 1.0, 1.0 ] );
 };
+
+const passPos2Dist = new PostPass( glCat, {
+  frag: require( './shaders/pos2dist.frag' ),
+} );
+passPos2Dist.name = 'Pos2Dist';
+passPos2Dist.framebuffer = glCat.lazyFramebuffer( width, height, true );
+
+const passRaymarch = new PostPass( glCat, {
+  frag: require( './shaders/raymarch.frag' ),
+} );
+passRaymarch.name = 'Raymarch';
+passRaymarch.inputTextures.samplerDepthMax = passPos2Dist.framebuffer!.getTexture()!;
+if ( module.hot ) {
+  module.hot.accept( './shaders/raymarch.frag', () => {
+    const frag = require( './shaders/raymarch.frag' );
+    passRaymarch.setProgram( { frag } );
+  } );
+}
+
+const passShade = new PostPass( glCat, {
+  frag: require( './shaders/shade.frag' ),
+} );
+passShade.name = 'Deferred Shade';
+passShade.framebuffer = glCat.lazyFramebuffer( width, height, true );
+passShade.inputTextures.sampler0 = fbRender.getTexture( extDrawBuffers.COLOR_ATTACHMENT0_WEBGL )!;
+passShade.inputTextures.sampler1 = fbRender.getTexture( extDrawBuffers.COLOR_ATTACHMENT1_WEBGL )!;
+passShade.inputTextures.sampler2 = fbRender.getTexture( extDrawBuffers.COLOR_ATTACHMENT2_WEBGL )!;
+passShade.inputTextures.samplerShadow = fbShadow.getTexture()!;
+if ( module.hot ) {
+  module.hot.accept( './shaders/shade.frag', () => {
+    const frag = require( './shaders/shade.frag' );
+    passShade.setProgram( { frag } );
+  } );
+}
 
 const passPreBloom = new PreBloomPass( glCat, {
   width,
@@ -201,6 +241,7 @@ const passPreBloom = new PreBloomPass( glCat, {
   factor: [ 2.0, 2.0, 2.0 ],
   multiplier: 8
 } );
+passPreBloom.inputTextures.sampler0 = passShade.framebuffer!.getTexture()!;
 
 const passBloom = new BloomPass( glCat, {
   preBloomPass: passPreBloom
@@ -209,16 +250,23 @@ const passBloom = new BloomPass( glCat, {
 const passPostBloom = new PostBloomPass( glCat, {
   bloomPass: passBloom
 } );
+passPostBloom.inputTextures.sampler0 = passShade.framebuffer!.getTexture()!;
 
 const passPost = new PostPass( glCat, {
-  frag: postFrag,
+  frag: require( './shaders/post.frag' ),
 } );
 passPost.beforeDraw = ( context: PassDrawContext ) => {
   context.program.uniform1f( 'barrelAmp', 0.05 );
 };
+if ( module.hot ) {
+  module.hot.accept( './shaders/post.frag', () => {
+    const frag = require( './shaders/post.frag' );
+    passPost.setProgram( { frag } );
+  } );
+}
 
 const passFxaa = new PostPass( glCat, {
-  frag: fxaaFrag
+  frag: require( './shaders/fxaa.frag' )
 } );
 passFxaa.name = 'FXAA';
 
@@ -229,34 +277,34 @@ const update = () => {
     return;
   }
 
-  // == update some bunch of shit ==================================================================
+  requestAnimationFrame( update );
+
+  // -- update some bunch of shit ------------------------------------------------------------------
   clock.update();
   updateMatrices();
   midiChain.update( clock.deltaTime );
   screenCaptureTexture.update();
 
-  // == let's render this ==========================================================================
+  // -- let's render this --------------------------------------------------------------------------
   passManager.begin();
 
-  // == compute stuff ==============================================================================
+  // -- compute stuff ------------------------------------------------------------------------------
   passManager.render( passTrailsCompute );
-  // passManager.render( 'trailsComputeReturn' );
-  // passManager.render( 'trailsCompute' );
 
   // passManager.render( 'piecesComputeReturn' );
   // passManager.render( 'piecesCompute' );
 
-  // == shadow =====================================================================================
+  // -- shadow -------------------------------------------------------------------------------------
   // glCatPath.render( 'shadow' );
-
-  passTrailsRender.isShadow = true;
-  passManager.render( passTrailsRender, {
-    target: fbShadow,
-    preDraw: ( context ) => context.glCat.clear( 1.0, 0.0, 0.0, 1.0 )
-  } );
 
   passEditor.isShadow = true;
   passManager.render( passEditor, {
+    target: fbShadow,
+    preDraw: ( context ) => context.glCat.clear( 0.0, 0.0, 0.0, 0.0 )
+  } );
+
+  passTrailsRender.isShadow = true;
+  passManager.render( passTrailsRender, {
     target: fbShadow,
   } );
 
@@ -265,125 +313,59 @@ const update = () => {
     target: fbShadow
   } );
 
-  // glCatPath.render( 'raymarch', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'paneFront', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'lofipath', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'octahedron', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'octahedronLines', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'trailsRender', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // glCatPath.render( 'piecesRender', {
-  //   target: glCatPath.fb( 'shadow' ),
-  //   isShadow: true,
-  //   width: shadowReso,
-  //   height: shadowReso
-  // } );
-
-  // == foreground =================================================================================
-  passTrailsRender.isShadow = false;
-  passManager.render( passTrailsRender, {
-    target: fbRender,
-    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 1.0 ); },
+  passPos2Dist.inputTextures.sampler0 = fbShadow.getTexture()!;
+  passManager.render( passPos2Dist, {
+    preDraw: ( context ) => {
+      context.program.uniform3f( 'from', ...lightPos );
+    },
   } );
 
+  passManager.render( passRaymarch, {
+    target: fbShadow,
+    preDraw: ( context ) => {
+      context.program.uniform1i( 'isShadow', 1 );
+    }
+  } );
+
+  // -- foreground ---------------------------------------------------------------------------------
   passEditor.isShadow = false;
   passManager.render( passEditor, {
     target: fbRender,
+    drawBuffers: 3,
+    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 1.0 ); },
+  } );
+
+  passTrailsRender.isShadow = false;
+  passManager.render( passTrailsRender, {
+    target: fbRender,
+    drawBuffers: 3,
   } );
 
   passBackground.isShadow = false;
   passManager.render( passBackground, {
-    target: fbRender
+    target: fbRender,
+    drawBuffers: 3,
   } );
 
-  // glCatPath.render( 'target' );
+  passPos2Dist.inputTextures.sampler0 = fbRender.getTexture( extDrawBuffers.COLOR_ATTACHMENT1_WEBGL )!;
+  passManager.render( passPos2Dist, {
+    preDraw: ( context ) => {
+      context.program.uniform3f( 'from', ...cameraPos );
+    },
+  } );
 
-  // glCatPath.render( 'raymarch', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
+  passManager.render( passRaymarch, {
+    target: fbRender,
+    drawBuffers: 3,
+    preDraw: ( context ) => {
+      context.program.uniform1i( 'isShadow', 0 );
+    }
+  } );
 
-  // glCatPath.render( 'paneFront', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
+  // -- shading ------------------------------------------------------------------------------------
+  passManager.render( passShade );
 
-  // glCatPath.render( 'lofipath', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width: width,
-  //   height: height
-  // } );
-
-  // glCatPath.render( 'octahedron', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
-
-  // glCatPath.render( 'octahedronLines', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
-
-  // glCatPath.render( 'trailsRender', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
-
-  // glCatPath.render( 'piecesRender', {
-  //   target: glCatPath.fb( 'target' ),
-  //   textureShadow: glCatPath.fb( 'shadow' ).texture,
-  //   width,
-  //   height
-  // } );
-
-  // == post =======================================================================================
-  passPreBloom.input = fbRender.getTexture()!;
+  // -- post ---------------------------------------------------------------------------------------
   passManager.render( passPreBloom );
 
   [ 1.0, 5.0, 14.0 ].forEach( ( v, i ) => {
@@ -397,67 +379,30 @@ const update = () => {
     passManager.render( passBloom );
   } );
 
-  passPostBloom.input = fbRender.getTexture()!;
   passManager.render( passPostBloom, {
     target: swapPost.i
   } );
   swapPost.swap();
 
-  passPost.input = swapPost.o.getTexture()!;
+  passPost.inputTextures.sampler0 = swapPost.o.getTexture()!;
   passManager.render( passPost, {
-    target: swapPost.i,
-  } );
-  swapPost.swap();
-
-  passFxaa.input = swapPost.o.getTexture()!;
-  passManager.render( passFxaa, {
+    // target: swapPost.i,
     width,
     height
   } );
+  // swapPost.swap();
 
-  // glCatPath.render( 'preBloom', {
-  //   input: glCatPath.fb( 'target' ).textures[ 0 ],
-  //   bias: [ -0.7, -0.7, -0.7 ],
-  //   factor: [ 1.0, 1.0, 1.0 ]
-  // } );
-  // glCatPath.render( 'bloom' );
-  // glCatPath.render( 'postBloom', {
-  //   dry: glCatPath.fb( 'target' ).textures[ 0 ]
+  // passFxaa.inputTextures.sampler0 = swapPost.o.getTexture()!;
+  // passManager.render( passFxaa, {
+  //   width,
+  //   height
   // } );
 
-  // let textureToJpegCosine = glCatPath.fb( 'postBloom' ).texture;
-  // if ( 0.5 < midi( 'ascii' ) ) {
-  //   glCatPath.render( 'ascii', {
-  //     input: textureToJpegCosine
-  //   } );
-  //   textureToJpegCosine = glCatPath.fb( 'ascii' ).texture;
-  // }
-
-  // glCatPath.render( 'jpegCosine', {
-  //   input: textureToJpegCosine
-  // } );
-  // glCatPath.render( 'jpegRender' );
-
-  // glCatPath.render( 'glitch', {
-  //   input: glCatPath.fb( 'jpegRender' ).texture
-  // } );
-  // glCatPath.render( 'post', {
-  //   input: glCatPath.fb( 'glitch' ).texture
-  // } );
-
-  // glCatPath.render( 'return', {
-  //   target: GLCatPath.nullFb,
-  //   input: glCatPath.fb( 'post' ).texture
-  // } );
-
-  // == end ========================================================================================
+  // -- end ----------------------------------------------------------------------------------------
   passManager.end();
 
-  // == finalize the loop ==========================================================================
   isInitialFrame = false;
   totalFrame ++;
-
-  requestAnimationFrame( update );
 };
 
 update();

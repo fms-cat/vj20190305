@@ -1,9 +1,11 @@
 declare module '*.frag' {
-  const value: string;
-  export default value;
+  const source: string;
+  export default source;
+  export const addHotListener: ( listener: ( content: string ) => void ) => void;
 }
 
 declare module '*.vert' {
-  const value: string;
-  export default value;
+  const source: string;
+  export default source;
+  export const addHotListener: ( listener: ( content: string ) => void ) => void;
 }

@@ -11,6 +11,7 @@ export interface PassRenderParams {
   width?: number;
   height?: number;
   target?: GLCatFramebuffer;
+  drawBuffers?: number;
   preDraw?: ( context: PassDrawContext ) => void;
   postDraw?: ( context: PassDrawContext ) => void;
 }
@@ -21,7 +22,7 @@ export abstract class Pass {
   protected __glCat: GLCat;
   protected __depthTest: boolean = true;
   protected __depthWrite: boolean = true;
-  protected __blend: [ GLenum, GLenum ] = [ GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA ];
+  protected __blend: [ GLenum, GLenum ] = [ GL.ONE, GL.ZERO ];
   protected __cull: GLenum | null = GL.BACK;
   protected __clear: number[] | null = null;
   protected __program: GLCatProgram | null = null;
@@ -36,12 +37,12 @@ export abstract class Pass {
     }
   }
 
-  public setProgram( vert: string, frag: string ) {
+  public setProgram( shaders: { vert: string, frag: string } ) {
     const glCat = this.__glCat;
 
     try {
       const prevProgram = this.__program;
-      const newProgram = glCat.lazyProgram( vert, frag );
+      const newProgram = glCat.lazyProgram( shaders.vert, shaders.frag );
       if ( newProgram ) {
         this.__program = newProgram;
         if ( prevProgram ) {
@@ -83,10 +84,20 @@ export abstract class Pass {
 
     gl.viewport( 0, 0, width, height );
 
-    // == various stuff ============================================================================
+    // == framebuffer / draw buffers ===============================================================
     gl.bindFramebuffer( gl.FRAMEBUFFER, target ? target.getFramebuffer() : null );
-    // TODO: Drawbuffer support
 
+    if ( glCat.getExtension( 'WEBGL_draw_buffers' ) ) {
+      if ( params.drawBuffers ) {
+        glCat.drawBuffers( params.drawBuffers );
+      } else if ( target !== null ) {
+        glCat.drawBuffers( [ GL.COLOR_ATTACHMENT0 ] );
+      } else {
+        glCat.drawBuffers( [ GL.BACK ] );
+      }
+    }
+
+    // == various stuff ============================================================================
     glCat.useProgram( this.__program );
 
     this.__depthTest ? gl.enable( gl.DEPTH_TEST ) : gl.disable( gl.DEPTH_TEST );

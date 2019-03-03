@@ -78,7 +78,7 @@ void main() {
   vIsOkayToDraw = ( velp.w < 0.5 && vel.w < 0.5 ) ? 1.0 : 0.0;
 
   // == compute size and direction =============================================
-  float size = 0.001 + 0.01 * pow( dice.w, 2.0 );
+  float size = 0.002 + 0.02 * pow( dice.w, 2.0 );
   vec3 dir = normalize( vel.xyz );
   vec3 sid = normalize( cross( dir, vec3( 0.0, 1.0, 0.0 ) ) );
   vec3 top = normalize( cross( sid, dir ) );

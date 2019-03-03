@@ -1,5 +1,5 @@
 // == load modules =================================================================================
-import { GLCat, GLCatBuffer, GLCatFramebuffer, GLCatTexture } from '@fms-cat/glcat-ts';
+import { GLCat, GLCatBuffer, GLCatFramebuffer } from '@fms-cat/glcat-ts';
 import { Pass, PassDrawContext } from '../libs/Pass';
 import RandomTexture from '../libs/RandomTexture';
 import * as UltraCat from '../libs/ultracat';
@@ -7,6 +7,31 @@ import trailsComputeFrag from '../shaders/trails-compute.frag';
 import trailsRenderFrag from '../shaders/trails-render.frag';
 import trailsRenderVert from '../shaders/trails-render.vert';
 import { PostPass } from './PostPass';
+
+// == hmr ==========================================================================================
+const computeHotListeners: Array<( frag: string ) => void> = [];
+const renderHotListeners: Array<( vert: string, frag: string ) => void> = [];
+
+if ( module.hot ) {
+  module.hot.accept(
+    [ '../shaders/trails-compute.frag' ],
+    () => {
+      const frag: string = require( '../shaders/trails-compute.frag' );
+      computeHotListeners.forEach( ( listener ) => listener( frag ) );
+    }
+  );
+}
+
+if ( module.hot ) {
+  module.hot.accept(
+    [ '../shaders/trails-render.vert', '../shaders/trails-render.frag' ],
+    () => {
+      const vert: string = require( '../shaders/trails-render.vert' );
+      const frag: string = require( '../shaders/trails-render.frag' );
+      renderHotListeners.forEach( ( listener ) => listener( vert, frag ) );
+    }
+  );
+}
 
 // == constants ====================================================================================
 const PIXELS_PER_PARTICLE = 2;
@@ -42,6 +67,10 @@ export class TrailsComputePass extends PostPass {
     this.__randomTexture = new RandomTexture( glCat, 32, 32 );
     this.__randomTextureStatic = new RandomTexture( glCat, 32, 32 );
     this.__randomTextureStatic.update( params.seed || 1145141919810 );
+
+    computeHotListeners.push( ( frag ) => {
+      this.setProgram( { frag } );
+    } );
   }
 
   public get trailLength() { return this.__trailLength; }
@@ -88,7 +117,6 @@ export class TrailsComputePass extends PostPass {
 // == pass for render ==============================================================================
 export class TrailsRenderPass extends Pass {
   public isShadow?: boolean;
-  public textureShadow?: GLCatTexture;
   protected __computePass: TrailsComputePass;
   protected __vboComputeU: GLCatBuffer;
   protected __vboComputeV: GLCatBuffer;
@@ -158,6 +186,16 @@ export class TrailsRenderPass extends Pass {
       }
       return ret;
     } )() );
+
+    renderHotListeners.push( ( vert, frag ) => {
+      try {
+        const program = glCat.lazyProgram( vert, frag );
+        this.__program!.dispose();
+        this.__program = program;
+      } catch ( e ) {
+        console.error( e );
+      }
+    } );
   }
 
   public dispose() {
@@ -185,14 +223,8 @@ export class TrailsRenderPass extends Pass {
     program.uniform1i( 'isShadow', this.isShadow ? 1 : 0 );
 
     program.uniform1f( 'trailShaker', 0.0 );
-    program.uniform1f( 'colorVar', 0.5 );
-    program.uniform1f( 'colorOffset', 0.7 );
-
-    if ( !this.isShadow && this.textureShadow ) {
-      program.uniformTexture( 'samplerShadow', this.textureShadow.getTexture(), 1 );
-    } else {
-      program.uniformTexture( 'samplerShadow', glCat.getDummyTexture()!.getTexture(), 1 );
-    }
+    program.uniform1f( 'colorVar', 0.1 );
+    program.uniform1f( 'colorOffset', 0.0 );
 
     program.uniformTexture(
       'samplerPcompute',

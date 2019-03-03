@@ -116,7 +116,7 @@ export class BloomPass extends PostPass {
   protected __draw( context: PassDrawContext ) {
     context.program.uniform1i( 'isVert', this.isVert ? 1 : 0 );
     context.program.uniform1f( 'var', this.var );
-    this.input = (
+    this.inputTextures.sampler0 = (
       this.isVert ? this.__fbH : this.__preBloomPass.framebuffer!
     ).getTexture()!;
     super.__draw( context );

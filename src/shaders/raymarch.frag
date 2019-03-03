@@ -1,14 +1,17 @@
-#define MARCH_ITER 60
+#define MARCH_ITER 120
 #define MARCH_MULT 0.7
 
 #define PI 3.14159265
 #define saturate(i) clamp(i,0.,1.)
 #define lofi(i,m) (floor((i)/(m))*(m))
+#define linearstep(a,b,x) saturate(((x)-(a))/((b)-(a)))
 
 #extension GL_EXT_frag_depth : require
 #extension GL_EXT_draw_buffers : require
+
 precision highp float;
 
+// == uniforms =====================================================================================
 uniform float time;
 uniform vec2 resolution;
 
@@ -27,12 +30,13 @@ uniform float qualityShit2;
 uniform mat4 matPL;
 uniform mat4 matVL;
 
+uniform float isPrePass;
 uniform bool isShadow;
 
+uniform sampler2D samplerDepthMax;
 uniform sampler2D samplerShadow;
 
-// ------
-
+// == common functions =============================================================================
 mat2 rotate2D( float _t ) {
   return mat2(
     cos( _t ), sin( _t ),
@@ -44,8 +48,12 @@ float random( vec2 _uv ) {
   return fract( sin( dot( vec2( 12.563, 21.864 ), _uv ) ) * 194.5134 );
 }
 
-// ------
+float smin( float a, float b, float k ) {
+  float h = max( k - abs( a - b ), 0.0 ) / k;
+  return min( a, b ) - h * h * h * k * ( 1.0 / 6.0 );
+}
 
+// == structs ======================================================================================
 struct Camera {
   vec3 pos;
   vec3 dir;
@@ -58,8 +66,7 @@ struct Ray {
   vec3 ori;
 };
 
-// ------
-
+// == struct methods ===============================================================================
 Camera camInit( in vec3 _pos, in vec3 _tar, in float _roll ) {
   Camera cam;
   cam.pos = _pos;
@@ -88,8 +95,7 @@ Ray rayFromCam( in vec2 _p, in Camera _cam, in float _fov ) {
   return rayInit( _cam.pos, dir );
 }
 
-// ------
-
+// == distance functions ===========================================================================
 float distFuncSphere( vec3 _p, float _r ) {
   return length( _p ) - _r;
 }
@@ -151,6 +157,14 @@ float distFunc( vec3 _p ) {
     );
   }
 
+  { // metaballs
+    for ( int i = 0; i < 8; i ++ ) {
+      vec3 pos = 1.0 * sin( mod( float( 1 + i ) * vec3( 0.7, 0.9, 1.1 ), 1.0 ) * time );
+      float distSphere = length( _p - pos ) - 0.5;
+      dist = smin( dist, distSphere, 1.0 );
+    }
+  }
+
   return dist;
 }
 
@@ -167,29 +181,9 @@ vec3 normalFunc( in vec3 _p ) {
   return normalFunc( _p, 1E-4 );
 }
 
-// ------
-
-float shadow( vec3 p, float d ) {
-  float dc = length( p - lightPos );
-
-  vec4 posFromLight = matPL * matVL * vec4( p, 1.0 );
-  vec2 shadowCoord = posFromLight.xy / posFromLight.w * 0.5 + 0.5;
-
-  float ret = 0.0;
-  for ( int iy = -1; iy <= 1; iy ++ ) {
-    for ( int ix = -1; ix <= 1; ix ++ ) {
-      vec2 uv = shadowCoord + vec2( float( ix ), float ( iy ) ) * 0.01;
-      float proj = texture2D( samplerShadow, uv ).x;
-      float bias = 0.1 + ( 1.0 - d ) * 0.3;
-
-      float dif = smoothstep( bias * 2.0, bias, ( dc - proj ) );
-      ret += dif / 9.0;
-    }
-  }
-  return ret;
-}
-
+// == main procedure ===============================================================================
 void main() {
+  vec2 uv = gl_FragCoord.xy / resolution;
   vec2 p = ( gl_FragCoord.xy * 2.0 - resolution ) / resolution.y;
 
   Camera cam = camInit( cameraPos, cameraTar, cameraRoll );
@@ -199,26 +193,27 @@ void main() {
   float rayLen = perspNear;
   vec3 rayPos = ray.ori + rayLen * ray.dir;
   float dist = 0.0;
+  float depthMax = texture2D( samplerDepthMax, uv ).x;
 
   for ( int i = 0; i < MARCH_ITER; i ++ ) {
     dist = distFunc( rayPos );
     rayLen += dist * MARCH_MULT;
     rayPos = ray.ori + rayLen * ray.dir;
 
+    if ( depthMax < rayLen ) { break; }
     if ( perspFar < rayLen ) { break; }
     if ( abs( dist ) < 1E-5 ) { break; }
   }
 
   if ( 1E-2 < dist ) { discard; }
 
-  if ( isShadow ) {
-    float depth = length( rayPos - lightPos );
-    gl_FragData[ 0 ] = vec4( depth, 0.0, 0.0, 1.0 );
+if ( isShadow ) {
+    gl_FragData[ 0 ] = vec4( rayPos, 1.0 );
 
     {
       float a = ( perspFar + perspNear ) / ( perspFar - perspNear );
       float b = 2.0 * perspFar * perspNear / ( perspFar - perspNear );
-      float z = dot( cam.dir, rayPos - cam.pos );
+      float z = dot( cam.dir, rayPos - lightPos );
       gl_FragDepthEXT = ( a - b / z ) * 0.5 + 0.5;
     }
     return;
@@ -226,17 +221,11 @@ void main() {
 
   vec3 nor = normalFunc( rayPos, 1E-4 );
   float edge = smoothstep( 0.1, 0.2, length( nor - normalFunc( rayPos, 6E-3 ) ) );
+  vec3 col = vec3( 0.07, 0.10, 0.11 ) + edge * vec3( 2.4, 0.1, 0.3 );
 
-  vec3 ld = normalize( rayPos - lightPos );
-  vec3 dif = 50.0 * vec3( 0.1 ) * (
-    saturate( dot( -nor, ld ) )
-    / pow( max( length( rayPos - lightPos ), 10.0 ), 2.0 )
-    * mix( 0.2, 1.0, shadow( rayPos, dot( -nor, ld ) ) )
-  );
-  dif += edge * vec3( 2.4, 0.1, 0.3 );
-
-  gl_FragData[ 0 ] = vec4( dif, 1.0 );
-  gl_FragData[ 1 ] = vec4( rayLen, 0.0, 0.0, 1.0 );
+  gl_FragData[ 0 ] = vec4( col, 2.0 );
+  gl_FragData[ 1 ] = vec4( rayPos, 1.0 );
+  gl_FragData[ 2 ] = vec4( nor, 1.0 );
 
   {
     float a = ( perspFar + perspNear ) / ( perspFar - perspNear );

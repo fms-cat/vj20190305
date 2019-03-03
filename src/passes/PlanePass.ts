@@ -11,7 +11,6 @@ export default class PlanePass extends Pass {
   public matM: MathCat.mat4 = MathCat.mat4Identity();
   public input?: GLCatTexture;
   public isShadow?: boolean;
-  public textureShadow?: GLCatTexture;
   public beforeDraw?: ( context: PassDrawContext ) => void;
   protected __vboPos: GLCatBuffer;
   protected __vboNor: GLCatBuffer;
@@ -43,6 +42,13 @@ export default class PlanePass extends Pass {
     this.__vboUv.dispose();
   }
 
+  public setProgram( shaders: { vert?: string, frag: string } ) {
+    super.setProgram( {
+      vert: shaders.vert || objectVert,
+      frag: shaders.frag
+    } );
+  }
+
   protected __draw( context: PassDrawContext ) {
     if ( this.beforeDraw ) { this.beforeDraw( context ); }
 
@@ -60,12 +66,6 @@ export default class PlanePass extends Pass {
       program.uniformTexture( 'sampler0', this.input.getTexture(), 0 );
     } else {
       program.uniformTexture( 'sampler0', glCat.getDummyTexture()!.getTexture(), 0 );
-    }
-
-    if ( !this.isShadow && this.textureShadow ) {
-      program.uniformTexture( 'samplerShadow', this.textureShadow.getTexture(), 1 );
-    } else {
-      program.uniformTexture( 'samplerShadow', glCat.getDummyTexture()!.getTexture(), 1 );
     }
 
     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
