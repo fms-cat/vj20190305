@@ -56,6 +56,7 @@ vec4 chromaTex( vec2 uv ) {
 void main() {
   vec2 uv = vUv.xy;
   uv.y = 1.0 - uv.y;
+  uv = 0.7 * ( uv - 0.5 ) + 0.5;
 
   float pos = 1.6 * uv.x + 0.9 * uv.y;
   float seed = lofi( pos, 0.1 ) + lofi( uv.y, 0.23 );

@@ -154,6 +154,10 @@ passManager.globalPreDraw = ( context ) => {
 // == passes and framebuffers ======================================================================
 const fbRender = glCat.lazyDrawbuffers( width, height, 3, true )!;
 const fbShadow = glCat.lazyFramebuffer( shadowReso, shadowReso, true )!;
+
+const fbRaymarchPrePassRender = glCat.lazyFramebuffer( width / 4, height / 4, true )!;
+const fbRaymarchPrePassShadow = glCat.lazyFramebuffer( shadowReso / 4, shadowReso / 4, true )!;
+
 const swapPost = new Swap(
   glCat.lazyFramebuffer( width, height, true )!,
   glCat.lazyFramebuffer( width, height, true )!
@@ -177,7 +181,7 @@ const passEditor = new PlanePass( glCat, {
   frag: require( './shaders/editor.frag' )
 } );
 passEditor.matM = MathCat.mat4Apply(
-  MathCat.mat4Scale( [ 0.4 * 16.0, 0.4 * 9.0, 1.0 ] ),
+  MathCat.mat4Scale( [ 0.3 * 16.0, 0.3 * 9.0, 1.0 ] ),
 );
 passEditor.input = screenCaptureTexture.getTexture();
 if ( module.hot ) {
@@ -320,9 +324,21 @@ const update = () => {
     },
   } );
 
+  passRaymarch.inputTextures.samplerPrePass = glCat.getDummyTexture()!;
+  passManager.render( passRaymarch, {
+    target: fbRaymarchPrePassShadow,
+    preDraw: ( context ) => {
+      context.glCat.clear();
+      context.program.uniform1i( 'isPrePass', 1 );
+      context.program.uniform1i( 'isShadow', 1 );
+    }
+  } );
+
+  passRaymarch.inputTextures.samplerPrePass = fbRaymarchPrePassShadow.getTexture()!;
   passManager.render( passRaymarch, {
     target: fbShadow,
     preDraw: ( context ) => {
+      context.program.uniform1i( 'isPrePass', 0 );
       context.program.uniform1i( 'isShadow', 1 );
     }
   } );
@@ -354,10 +370,22 @@ const update = () => {
     },
   } );
 
+  passRaymarch.inputTextures.samplerPrePass = glCat.getDummyTexture()!;
+  passManager.render( passRaymarch, {
+    target: fbRaymarchPrePassRender,
+    preDraw: ( context ) => {
+      context.glCat.clear();
+      context.program.uniform1i( 'isPrePass', 1 );
+      context.program.uniform1i( 'isShadow', 0 );
+    }
+  } );
+
+  passRaymarch.inputTextures.samplerPrePass = fbRaymarchPrePassRender.getTexture()!;
   passManager.render( passRaymarch, {
     target: fbRender,
     drawBuffers: 3,
     preDraw: ( context ) => {
+      context.program.uniform1i( 'isPrePass', 0 );
       context.program.uniform1i( 'isShadow', 0 );
     }
   } );

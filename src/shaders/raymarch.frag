@@ -1,5 +1,6 @@
-#define MARCH_ITER 120
-#define MARCH_MULT 0.7
+#define MARCH_ITER 50
+#define MARCH_NEAR 0.01
+#define MARCH_MULT 0.9
 
 #define PI 3.14159265
 #define saturate(i) clamp(i,0.,1.)
@@ -30,9 +31,10 @@ uniform float qualityShit2;
 uniform mat4 matPL;
 uniform mat4 matVL;
 
-uniform float isPrePass;
+uniform bool isPrePass;
 uniform bool isShadow;
 
+uniform sampler2D samplerPrePass;
 uniform sampler2D samplerDepthMax;
 uniform sampler2D samplerShadow;
 
@@ -157,14 +159,6 @@ float distFunc( vec3 _p ) {
     );
   }
 
-  { // metaballs
-    for ( int i = 0; i < 8; i ++ ) {
-      vec3 pos = 1.0 * sin( mod( float( 1 + i ) * vec3( 0.7, 0.9, 1.1 ), 1.0 ) * time );
-      float distSphere = length( _p - pos ) - 0.5;
-      dist = smin( dist, distSphere, 1.0 );
-    }
-  }
-
   return dist;
 }
 
@@ -186,28 +180,40 @@ void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
   vec2 p = ( gl_FragCoord.xy * 2.0 - resolution ) / resolution.y;
 
+  vec4 texPrePass;
+  if ( !isPrePass ) {
+    texPrePass = texture2D( samplerPrePass, uv );
+    if ( texPrePass.y == 0.0 ) { discard; }
+  }
+
   Camera cam = camInit( cameraPos, cameraTar, cameraRoll );
   if ( isShadow ) { cam = camInit( lightPos, cameraTar, 0.0 ); }
   Ray ray = rayFromCam( p, cam, perspFov );
 
-  float rayLen = perspNear;
+  float rayLen = isPrePass ? perspNear : MARCH_MULT * texPrePass.x;
   vec3 rayPos = ray.ori + rayLen * ray.dir;
   float dist = 0.0;
   float depthMax = texture2D( samplerDepthMax, uv ).x;
+  bool isValid = true;
 
   for ( int i = 0; i < MARCH_ITER; i ++ ) {
     dist = distFunc( rayPos );
     rayLen += dist * MARCH_MULT;
     rayPos = ray.ori + rayLen * ray.dir;
 
-    if ( depthMax < rayLen ) { break; }
-    if ( perspFar < rayLen ) { break; }
-    if ( abs( dist ) < 1E-5 ) { break; }
+    if ( depthMax < rayLen ) { isValid = false; break; }
+    if ( perspFar < rayLen ) { isValid = false; break; }
+    if ( abs( dist ) < MARCH_NEAR * ( isPrePass ? 4.0 : 1.0 ) ) { break; }
   }
 
-  if ( 1E-2 < dist ) { discard; }
+  if ( isPrePass ) {
+    gl_FragData[ 0 ] = vec4( rayLen, isValid ? 1.0 : 0.0, 0.0, 1.0 );
+    return;
+  }
 
-if ( isShadow ) {
+  if ( MARCH_NEAR < abs( dist ) ) { discard; }
+
+  if ( isShadow ) {
     gl_FragData[ 0 ] = vec4( rayPos, 1.0 );
 
     {

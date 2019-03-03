@@ -98,10 +98,10 @@ float shadow( Isect isect ) {
   float ret = 0.0;
   for ( int iy = -1; iy <= 1; iy ++ ) {
     for ( int ix = -1; ix <= 1; ix ++ ) {
-      vec2 uv = uv + vec2( float( ix ), float ( iy ) ) * 1E-3;
+      vec2 uv = uv + vec2( float( ix ), float ( iy ) ) * 2E-3;
       vec4 tex = texture2D( samplerShadow, uv );
       float proj = mix( perspFar, length( tex.xyz - lightPos ), tex.w );
-      float bias = 0.01 + ( 1.0 - d ) * 0.03;
+      float bias = 0.1 + ( 1.0 - d ) * 0.3;
 
       float dif = mix(
         smoothstep( bias * 2.0, bias, len - proj ),
