@@ -165,16 +165,16 @@ void main() {
   vec3 posFromSphereCenter = pos.xyz + vec3( 0.0, 0.0, 5.0 );
 
   // spin around center
-  // vel.zx += dt * 30.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( posFromSphereCenter.xz );
+  vel.zx += dt * 10.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( posFromSphereCenter.xz );
 
   // sphere
-  // vel.xyz += dt * 40.0 * noiseScale * ( SPHERE_RADIUS - length( posFromSphereCenter ) ) * normalize( posFromSphereCenter );
+  vel.xyz += dt * 100.00 * noiseScale * ( SPHERE_RADIUS - length( posFromSphereCenter ) ) * normalize( posFromSphereCenter );
 
   // noise field
   vel.xyz += 100.0 * noiseScale * vec3(
-    noise( vec4( 0.4 * pos.xyz, 1.485 + sin( time * 0.1 ) + noisePhase ) ),
-    noise( vec4( 0.4 * pos.xyz, 3.485 + sin( time * 0.1 ) + noisePhase ) ),
-    noise( vec4( 0.4 * pos.xyz, 5.485 + sin( time * 0.1 ) + noisePhase ) )
+    noise( vec4( 0.8 * pos.xyz, 1.485 + sin( time * 0.1 ) + noisePhase ) ),
+    noise( vec4( 0.8 * pos.xyz, 3.485 + sin( time * 0.1 ) + noisePhase ) ),
+    noise( vec4( 0.8 * pos.xyz, 5.485 + sin( time * 0.1 ) + noisePhase ) )
   ) * dt;
 
   // resistance

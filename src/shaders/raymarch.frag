@@ -36,6 +36,7 @@ uniform bool isShadow;
 
 uniform sampler2D samplerPrePass;
 uniform sampler2D samplerDepthMax;
+uniform sampler2D samplerRandomStatic;
 uniform sampler2D samplerShadow;
 
 // == common functions =============================================================================
@@ -144,7 +145,8 @@ float distFunc( vec3 _p ) {
   float dist = 1E9;
 
   vec3 p = mod( _p - vec3( 0.0, time, 0.0 ) + 5.0, 10.0 ) - 5.0;
-  p = ifs( p, vec3( 0.06, -0.03, 0.08 ), 10.0 * vec3( qualityShit0, qualityShit1, qualityShit2 ) );
+  p.x = abs( p.x );
+  p = ifs( p, vec3( 0.09, -0.03, 0.18 ), 10.0 * vec3( qualityShit0, qualityShit1, qualityShit2 ) );
 
   { // grid
     float m = 5.0;
@@ -154,7 +156,7 @@ float distFunc( vec3 _p ) {
       distFuncBox( p, vec3( 0.04, 0.40, 0.04 ) )
     );
     dist = max(
-      -distFuncBox( _p, vec3( 5.5, 100.0, 5.5 ) ),
+      -distFuncBox( _p, vec3( 2.5, 100.0, 15.5 ) ),
       distFuncBox( p, vec3( 0.5 ) )
     );
   }
@@ -164,11 +166,12 @@ float distFunc( vec3 _p ) {
 
 vec3 normalFunc( in vec3 _p, in float _d ) {
   vec2 d = vec2( 0.0, 1.0 ) * _d;
-  return normalize( vec3(
+  vec3 nor = normalize( vec3(
     distFunc( _p + d.yxx ) - distFunc( _p - d.yxx ),
     distFunc( _p + d.xyx ) - distFunc( _p - d.xyx ),
     distFunc( _p + d.xxy ) - distFunc( _p - d.xxy )
   ) );
+  return nor;
 }
 
 vec3 normalFunc( in vec3 _p ) {
@@ -226,7 +229,7 @@ void main() {
   }
 
   vec3 nor = normalFunc( rayPos, 1E-4 );
-  float edge = smoothstep( 0.1, 0.2, length( nor - normalFunc( rayPos, 6E-3 ) ) );
+  float edge = smoothstep( 0.1, 0.2, length( nor - normalFunc( rayPos, 1E-2 ) ) );
   vec3 col = vec3( 0.07, 0.10, 0.11 ) + edge * vec3( 2.4, 0.1, 0.3 );
 
   gl_FragData[ 0 ] = vec4( col, 2.0 );

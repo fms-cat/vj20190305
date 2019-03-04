@@ -7,6 +7,12 @@ export interface MidiChainValueOptions {
   listener?: MidiCahinEventHandler;
 }
 
+interface MidiChainStorage {
+  values: { [ key: string ]: number };
+  noteMap: { [ note: number ]: string };
+  ccMap: { [ cc: number ]: string };
+}
+
 export class MidiChainValue {
   public value: number = 0.0;
   public rawValue: number = 0.0;
@@ -29,9 +35,16 @@ export class MidiChain {
   private __noteMap: { [ note: number ]: string } = {};
   private __ccMap: { [ cc: number ]: string } = {};
   private __dom?: HTMLElement;
-  private __storage: any = JSON.parse( localStorage.midichain || '{}' );
+  private __storage: MidiChainStorage = localStorage.midichain ? JSON.parse( localStorage.midichain ) : {
+    values: {},
+    noteMap: {},
+    ccMap: {}
+  };
 
   constructor() {
+    this.__noteMap = this.__storage.noteMap || {};
+    this.__ccMap = this.__storage.ccMap || {};
+
     navigator.requestMIDIAccess().catch( ( error ) => {
       throw new Error( error );
     } ).then( ( data ) => {
@@ -71,9 +84,13 @@ export class MidiChain {
     } );
   }
 
+  private __updateStorage() {
+    localStorage.midichain = JSON.stringify( this.__storage );
+  }
+
   private __createParam( key: string ) {
     this.__params[ key ] = new MidiChainValue();
-    this.__params[ key ].value = this.__params[ key ].rawValue = this.__storage[ key ] || 0.0;
+    this.__params[ key ].value = this.__params[ key ].rawValue = this.__storage.values[ key ] || 0.0;
     this.__updateDOM();
   }
 
@@ -112,8 +129,8 @@ export class MidiChain {
     this.__params[ key ].listeners.forEach(
       ( listener ) => ( listener( this.__params[ key ].rawValue ) )
     );
-    this.__storage[ key ] = value;
-    localStorage.midichain = JSON.stringify( this.__storage );
+    this.__storage.values[ key ] = value;
+    this.__updateStorage();
   }
 
   private __onMidiMessage( event: WebMidi.MIDIMessageEvent ) {
@@ -123,6 +140,8 @@ export class MidiChain {
     if ( event.data && event.data[ 0 ] === 128 || event.data[ 0 ] === 144 ) {
       if ( this.__learning ) {
         this.__noteMap[ event.data[ 1 ] ] = this.__learning;
+        this.__storage.noteMap[ event.data[ 1 ] ] = this.__learning;
+        this.__updateStorage();
         this.__learning = '';
       }
 
@@ -132,6 +151,8 @@ export class MidiChain {
     } else if ( event.data && event.data[ 0 ] === 176 ) {
       if ( this.__learning ) {
         this.__ccMap[ event.data[ 1 ] ] = this.__learning;
+        this.__storage.ccMap[ event.data[ 1 ] ] = this.__learning;
+        this.__updateStorage();
         this.__learning = '';
       }
 

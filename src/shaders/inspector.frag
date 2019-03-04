@@ -86,7 +86,7 @@ bool print( in vec2 _coord, float _in ) {
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
 
-  vec2 m = floor( vec2( 0.0, resolution.y ) + vec2( 1.0, -1.0 ) * mouse );
+  vec2 m = floor( vec2( 0.0, resolution.y ) + vec2( 1.0, -1.0 ) * mouse * resolution.xy );
   vec2 center = floor( m + vec2( 1.0, 0.7 ) * RADIUS );
   float circle = length( gl_FragCoord.xy - center ) - RADIUS;
 

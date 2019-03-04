@@ -10,7 +10,7 @@ export class ScreenCaptureTexture {
   }
 
   public setup(): Promise<GLCatTexture> {
-    return (navigator.mediaDevices as any).getDisplayMedia(
+    return (navigator.mediaDevices as any).getUserMedia(
       {
         video: true,
       }

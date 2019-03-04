@@ -12,6 +12,7 @@ varying vec3 vPos;
 varying vec3 vNor;
 varying vec2 vUv;
 
+uniform float beat;
 uniform vec3 cameraPos;
 uniform vec3 lightPos;
 uniform vec3 cameraTar;
@@ -48,7 +49,7 @@ void main() {
   float reactive = 1.0 + audioReactive * sin( 20.0 * smoothstep( -60.0, -0.0, wave.y ) );
   vec3 accentColor = vec3( 1.0, 0.9, 1.1 );
   vec3 col = reactive * mix(
-    accentColor,
+    accentColor * 1.4 * sin( PI * exp( -6.0 * fract( beat ) ) ),
     vec3( 0.04 ),
     scroll
   );

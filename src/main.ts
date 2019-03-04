@@ -6,7 +6,9 @@ import * as MathCat from './libs/mathcat';
 import { MidiChain } from './libs/MidiChain';
 import { PassDrawContext } from './libs/Pass';
 import { PassManagerGUI } from './libs/PassManagerGUI';
+import RandomTexture from './libs/RandomTexture';
 import { ScreenCaptureTexture } from './libs/ScreenCaptureTexture';
+import { TapTempo } from './libs/TapTempo';
 import { Swap, triangleStripQuad } from './libs/ultracat';
 import { BloomPass, PostBloomPass, PreBloomPass } from './passes/BloomPasses';
 import PlanePass from './passes/PlanePass';
@@ -23,6 +25,24 @@ function $<T extends Element>( selector: string ) {
 const midiChain = new MidiChain();
 const midi = midiChain.midi;
 midiChain.attachDOM( $<HTMLDivElement>( '#divMidi' )! );
+
+// == hi TapTempo ==================================================================================
+const tapTempo = new TapTempo();
+midi( 'TapTempo-tap', { listener: ( value ) => {
+  if ( value === 1.0 ) {
+    tapTempo.tap();
+  }
+} } );
+midi( 'TapTempo-nudgeLeft', { listener: ( value ) => {
+  if ( value === 1.0 ) {
+    tapTempo.nudge( -( tapTempo.bpm % 1.0 ) || -1.0 );
+  }
+} } );
+midi( 'TapTempo-nudgeRight', { listener: ( value ) => {
+  if ( value === 1.0 ) {
+    tapTempo.nudge( 1.0 - ( tapTempo.bpm % 1.0 ) );
+  }
+} } );
 
 // == hi canvas ====================================================================================
 const canvas = document.querySelector<HTMLCanvasElement>( '#canvas' )!;
@@ -124,6 +144,7 @@ passManager.globalPreDraw = ( context ) => {
 
   context.program.uniform1f( 'time', clock.time );
   context.program.uniform1f( 'deltaTime', clock.deltaTime );
+  context.program.uniform1f( 'beat', tapTempo.beat );
   context.program.uniform1f( 'totalFrame', totalFrame );
 
   context.program.uniform3fv( 'cameraPos', cameraPos );
@@ -142,7 +163,7 @@ passManager.globalPreDraw = ( context ) => {
   context.program.uniformMatrix4fv( 'matPL', matPL );
   context.program.uniformMatrix4fv( 'matVL', matVL );
 
-  context.program.uniform2fv( 'mouse', [ mouseX, mouseY ] );
+  context.program.uniform2fv( 'mouse', [ mouseX / canvas.clientWidth, mouseY / canvas.clientHeight ] );
 
   context.program.uniform4fv( 'bgColor', [ 0.0, 0.0, 0.0, 1.0 ] );
 
@@ -152,6 +173,9 @@ passManager.globalPreDraw = ( context ) => {
 };
 
 // == passes and framebuffers ======================================================================
+const randomTextureStatic = new RandomTexture( glCat, 2048, 2048 );
+randomTextureStatic.update();
+
 const fbRender = glCat.lazyDrawbuffers( width, height, 3, true )!;
 const fbShadow = glCat.lazyFramebuffer( shadowReso, shadowReso, true )!;
 
@@ -215,6 +239,7 @@ const passRaymarch = new PostPass( glCat, {
 } );
 passRaymarch.name = 'Raymarch';
 passRaymarch.inputTextures.samplerDepthMax = passPos2Dist.framebuffer!.getTexture()!;
+passRaymarch.inputTextures.samplerRandomStatic = randomTextureStatic.getTexture();
 if ( module.hot ) {
   module.hot.accept( './shaders/raymarch.frag', () => {
     const frag = require( './shaders/raymarch.frag' );

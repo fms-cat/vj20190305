@@ -166,7 +166,7 @@ void main() {
     float sh = mix( 0.2, 1.0, shadow( isect ) );
     col = isect.props.xyz * sh;
   } else if ( isect.mtl == 2 ) {
-    col = radiance( isect, isect.props.xyz, vec3( 0.1 ), 0.1 );
+    col = radiance( isect, isect.props.xyz, vec3( 0.01 ), 0.1 );
   } else {
     col = vec3( 0.0, 1.0, 0.0 );
   }
