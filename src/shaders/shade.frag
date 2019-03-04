@@ -155,12 +155,6 @@ void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
   Isect isect = getIsect( uv );
 
-  // if there are no normal, it's an air
-  if ( length( isect.nor ) < 0.5 ) {
-    gl_FragColor = vec4( 0.0, 0.0, 0.0, 1.0 );
-    return;
-  }
-
   vec3 col;
   if ( isect.mtl == 1 ) {
     float sh = mix( 0.2, 1.0, shadow( isect ) );
@@ -168,7 +162,7 @@ void main() {
   } else if ( isect.mtl == 2 ) {
     col = radiance( isect, isect.props.xyz, vec3( 0.01 ), 0.1 );
   } else {
-    col = vec3( 0.0, 1.0, 0.0 );
+    col = vec3( 0.0, 0.0, 0.0 );
   }
 
   gl_FragColor = vec4( col, 1.0 );

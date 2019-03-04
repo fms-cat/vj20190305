@@ -373,7 +373,7 @@ const update = () => {
   passManager.render( passEditor, {
     target: fbRender,
     drawBuffers: 3,
-    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 1.0 ); },
+    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 0.0 ); },
   } );
 
   passTrailsRender.isShadow = false;
