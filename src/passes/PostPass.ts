@@ -34,7 +34,7 @@ export class PostPass extends Pass {
   }
 
   public setProgram( shaders: { vert?: string, frag: string } ) {
-    super.setProgram( {
+    return super.setProgram( {
       vert: shaders.vert || quadVert,
       frag: shaders.frag
     } );

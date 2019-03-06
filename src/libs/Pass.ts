@@ -37,7 +37,7 @@ export abstract class Pass {
     }
   }
 
-  public setProgram( shaders: { vert: string, frag: string } ) {
+  public setProgram( shaders: { vert: string, frag: string } ): Promise<void> {
     const glCat = this.__glCat;
 
     try {
@@ -51,8 +51,10 @@ export abstract class Pass {
         }
       }
     } catch ( e ) {
-      console.error( e );
+      return Promise.reject( e );
     }
+
+    return Promise.resolve();
   }
 
   public render( params: PassRenderParams ) {

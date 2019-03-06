@@ -43,7 +43,7 @@ export default class PlanePass extends Pass {
   }
 
   public setProgram( shaders: { vert?: string, frag: string } ) {
-    super.setProgram( {
+    return super.setProgram( {
       vert: shaders.vert || objectVert,
       frag: shaders.frag
     } );

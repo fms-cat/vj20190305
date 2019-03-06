@@ -48,6 +48,8 @@ export class TrailsComputePass extends PostPass {
     trailLength?: number;
     trails?: number;
     seed?: number;
+    resolveHandler?: () => void;
+    rejectHandler?: ( e: any ) => void;
   } = {} ) {
     super( glCat, {
       frag: trailsComputeFrag
@@ -69,7 +71,9 @@ export class TrailsComputePass extends PostPass {
     this.__randomTextureStatic.update( params.seed || 1145141919810 );
 
     computeHotListeners.push( ( frag ) => {
-      this.setProgram( { frag } );
+      this.setProgram( { frag } )
+        .catch( ( e ) => params.rejectHandler && params.rejectHandler( e ) )
+        .then( () => params.resolveHandler && params.resolveHandler() );
     } );
   }
 

@@ -14,6 +14,7 @@ precision highp float;
 
 // == uniforms =====================================================================================
 uniform float time;
+uniform float beat;
 uniform vec2 resolution;
 
 uniform vec3 cameraPos;
@@ -24,9 +25,9 @@ uniform float perspFar;
 uniform float cameraRoll;
 uniform vec3 lightPos;
 
-uniform float qualityShit0;
-uniform float qualityShit1;
-uniform float qualityShit2;
+uniform float midi0;
+uniform float midi1;
+uniform float midi2;
 
 uniform mat4 matPL;
 uniform mat4 matVL;
@@ -145,19 +146,12 @@ float distFunc( vec3 _p ) {
   float dist = 1E9;
 
   vec3 p = mod( _p - vec3( 0.0, time, 0.0 ) + 5.0, 10.0 ) - 5.0;
-  p.x = abs( p.x );
-  p = ifs( p, vec3( 0.09, -0.03, 0.18 ), 10.0 * vec3( qualityShit0, qualityShit1, qualityShit2 ) );
+  vec3 pIfs = ifs( p, vec3( 0.09, -0.03, 0.18 ), 10.0 * vec3( midi0, midi1, midi2 ) );
 
-  { // grid
-    float m = 5.0;
-    // vec3 p = mod( p, m ) - m / 2.0;
-    dist = min(
-      distFuncBox( p, vec3( 0.40, 0.04, 0.04 ) ),
-      distFuncBox( p, vec3( 0.04, 0.40, 0.04 ) )
-    );
+  {
     dist = max(
-      -distFuncBox( _p, vec3( 2.5, 100.0, 15.5 ) ),
-      distFuncBox( p, vec3( 0.5 ) )
+      -distFuncBox( p, vec3( 2.5, 100.0, 5.5 ) ),
+      distFuncBox( pIfs, vec3( 0.1 + 0.4 * sin( PI * exp( -fract( beat ) ) ) ) )
     );
   }
 
@@ -230,7 +224,7 @@ void main() {
 
   vec3 nor = normalFunc( rayPos, 1E-4 );
   float edge = smoothstep( 0.1, 0.2, length( nor - normalFunc( rayPos, 1E-2 ) ) );
-  vec3 col = vec3( 0.07, 0.10, 0.11 ) + edge * vec3( 2.4, 0.1, 0.3 );
+  vec3 col = vec3( 0.07, 0.10, 0.11 ) + edge * 0.0 * vec3( 2.4, 0.1, 0.3 );
 
   gl_FragData[ 0 ] = vec4( col, 2.0 );
   gl_FragData[ 1 ] = vec4( rayPos, 1.0 );

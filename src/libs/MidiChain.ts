@@ -84,6 +84,15 @@ export class MidiChain {
     } );
   }
 
+  public setValue( key: string, value: number ) {
+    if ( !this.__params[ key ] ) { return; }
+
+    this.__params[ key ].rawValue = value;
+    this.__storage.values[ key ] = value;
+    this.__updateStorage();
+
+  }
+
   private __updateStorage() {
     localStorage.midichain = JSON.stringify( this.__storage );
   }

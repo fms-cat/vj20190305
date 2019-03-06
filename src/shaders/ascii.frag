@@ -1,10 +1,9 @@
 #version 100
 
 #define saturate(i) clamp(i,0.,1.)
+#define lofi(i,m) (floor((i)/(m))*(m))
 
 precision highp float;
-
-varying vec2 textureCoord;
 
 uniform float time;
 
@@ -31,7 +30,7 @@ void main() {
   vec2 coord = gl_FragCoord.xy;
 
   vec2 size = asciiCharSize * asciiZoom;
-  vec2 uvTex = ( ( floor( ( coord - resolution.xy / 2.0 ) / size ) + 0.5 ) * size + resolution.xy / 2.0 ) / resolution;
+  vec2 uvTex = lofi( coord, size ) / resolution;
   vec4 tex = saturate( texture2D( sampler0, uvTex ) );
   float g = gray( tex.xyz ) * 0.9999;
 
@@ -40,9 +39,14 @@ void main() {
     mod( ( floor( ( coord - resolution.xy / 2.0 ) / asciiZoom ) + 0.5 ) * vec2( 1.0, -1.0 ), asciiCharSize )
   ) / asciiTableReso;
   float charShape = texture2D( samplerAscii, uvChar ).x;
-  gl_FragColor = vec4( mix(
+  vec4 asciiOut = vec4( mix(
     asciiBg,
     mix( asciiFg, vec4( floor( normalize( tex.xyz + 0.01 ) * 3.9999 ) / 3.0, 1.0 ), asciiColorMode ),
     charShape
   ) );
+  gl_FragColor = mix(
+    texture2D( sampler0, coord / resolution ),
+    asciiOut,
+    saturate( asciiZoom )
+  );
 }

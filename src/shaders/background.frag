@@ -27,6 +27,10 @@ uniform vec4 wave;
 uniform bool isShadow;
 uniform float audioReactive;
 
+uniform float colorHue;
+uniform float colorSaturation;
+uniform float midi16;
+
 uniform sampler2D samplerShadow;
 
 // == common =======================================================================================
@@ -46,15 +50,15 @@ void main() {
   }
 
   float scroll = step( 0.0, sin( vUv.y * 50.0 + abs( vUv.x - 0.5 ) * 30.0 - time * 3.0 ) );
-  float reactive = 1.0 + audioReactive * sin( 20.0 * smoothstep( -60.0, -0.0, wave.y ) );
-  vec3 accentColor = vec3( 1.0, 0.9, 1.1 );
-  vec3 col = reactive * mix(
-    accentColor * 1.4 * sin( PI * exp( -6.0 * fract( beat ) ) ),
+  float b = midi16 * sin( PI * exp( -6.0 * fract( beat - 0.2 * vUv.y ) ) );
+  vec3 accentColor = mix( vec3( 1.0 ), 2.0 * catColor( TAU * colorHue ), colorSaturation );
+  vec3 col = mix(
+    accentColor * 1.4 * b,
     vec3( 0.04 ),
     scroll
   );
 
-  gl_FragData[ 0 ] = vec4( col, 2.0 );
+  gl_FragData[ 0 ] = vec4( col, 1.0 );
   gl_FragData[ 1 ] = vec4( vPos, 1.0 );
   gl_FragData[ 2 ] = vec4( vNor, 1.0 );
 }

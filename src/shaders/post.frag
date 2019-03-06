@@ -11,6 +11,7 @@
 precision highp float;
 
 uniform float time;
+uniform float errorTime;
 uniform vec2 resolution;
 
 uniform float barrelAmp;
@@ -60,4 +61,5 @@ void main() {
   );
 
   gl_FragColor = vec4( col, 1.0 );
+  gl_FragColor.yz *= 0.6 + 0.4 * cos( 5.0 * errorTime );
 }

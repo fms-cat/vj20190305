@@ -1,6 +1,8 @@
 // == import various modules / stuff ===============================================================
 import { GL, GLCat } from '@fms-cat/glcat-ts';
 import CONFIG from './config.json';
+import { ErrorLayer } from './ErrorLayer';
+import asciiTable from './images/ascii-dos437.png';
 import Clock from './libs/clock-realtime';
 import * as MathCat from './libs/mathcat';
 import { MidiChain } from './libs/MidiChain';
@@ -44,6 +46,9 @@ midi( 'TapTempo-nudgeRight', { listener: ( value ) => {
   }
 } } );
 
+// == hi ErrorLayer ================================================================================
+const errorLayer = new ErrorLayer();
+
 // == hi canvas ====================================================================================
 const canvas = document.querySelector<HTMLCanvasElement>( '#canvas' )!;
 const width = canvas.width = CONFIG.resolution[ 0 ];
@@ -85,6 +90,12 @@ let isInitialFrame = true;
 
 const clock = new Clock();
 clock.setTime( 0.0 );
+
+midi( 'clock-reset', { listener: ( value ) => {
+  if ( value === 1.0 ) {
+    clock.setTime( 0.0 );
+  }
+} } );
 
 // == lights, camera, action! ======================================================================
 let cameraPos: MathCat.vec3 = [ 0.0, 0.0, 0.0 ];
@@ -129,6 +140,13 @@ const updateMatrices = ( camOffset?: MathCat.vec3 ) => {
 };
 updateMatrices();
 
+midi( 'camera-random', { listener: ( value ) => {
+  if ( value === 1.0 ) {
+    midiChain.setValue( 'camera-rotX', Math.random() );
+    midiChain.setValue( 'camera-rotY', Math.random() );
+  }
+} } );
+
 // == mouse listener, why tho ======================================================================
 let mouseX = 0.0;
 let mouseY = 0.0;
@@ -146,6 +164,7 @@ passManager.globalPreDraw = ( context ) => {
   context.program.uniform1f( 'deltaTime', clock.deltaTime );
   context.program.uniform1f( 'beat', tapTempo.beat );
   context.program.uniform1f( 'totalFrame', totalFrame );
+  context.program.uniform1f( 'errorTime', errorLayer.time );
 
   context.program.uniform3fv( 'cameraPos', cameraPos );
   context.program.uniform3fv( 'cameraTar', cameraTar );
@@ -163,18 +182,31 @@ passManager.globalPreDraw = ( context ) => {
   context.program.uniformMatrix4fv( 'matPL', matPL );
   context.program.uniformMatrix4fv( 'matVL', matVL );
 
+  context.program.uniform1f( 'colorHue', midi( 'colorHue', { smoothFactor: 10.0 } ) );
+  context.program.uniform1f( 'colorSaturation', midi( 'colorSaturation', { smoothFactor: 10.0 } ) );
+
   context.program.uniform2fv( 'mouse', [ mouseX / canvas.clientWidth, mouseY / canvas.clientHeight ] );
 
   context.program.uniform4fv( 'bgColor', [ 0.0, 0.0, 0.0, 1.0 ] );
 
-  for ( let i = 0; i < 9; i ++ ) {
-    context.program.uniform1f( 'qualityShit' + i, midi( 'qualityShit' + i, { smoothFactor: 10.0 } ) );
+  for ( let i = 0; i < 24; i ++ ) {
+    context.program.uniform1f( 'midi' + i, midi( 'midi' + i, { smoothFactor: 10.0 } ) );
   }
 };
 
 // == passes and framebuffers ======================================================================
 const randomTextureStatic = new RandomTexture( glCat, 2048, 2048 );
 randomTextureStatic.update();
+
+const textureErrorLayer = glCat.createTexture()!;
+const textureAscii = glCat.createTexture()!;
+{
+  const image = new Image();
+  image.src = asciiTable;
+  image.onload = () => {
+    textureAscii.setTexture( image );
+  };
+}
 
 const fbRender = glCat.lazyDrawbuffers( width, height, 3, true )!;
 const fbShadow = glCat.lazyFramebuffer( shadowReso, shadowReso, true )!;
@@ -187,8 +219,21 @@ const swapPost = new Swap(
   glCat.lazyFramebuffer( width, height, true )!
 );
 
+const passNormalMap = new PostPass( glCat, {
+  frag: require( './shaders/normalmap.frag' )
+} );
+passNormalMap.framebuffer = glCat.lazyFramebuffer( 1024, 1024, true )!;
+if ( module.hot ) {
+  module.hot.accept( './shaders/normalmap.frag', () => {
+    const frag = require( './shaders/normalmap.frag' );
+    passNormalMap.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
+  } );
+}
+
 const passBackground = new PlanePass( glCat, {
-  frag: require( './shaders/background.frag' )
+  frag: require( './shaders/background.frag' ),
 } );
 passBackground.matM = MathCat.mat4Apply(
   MathCat.mat4Translate( [ 0.0, 0.0, -10.0 ] ),
@@ -197,7 +242,9 @@ passBackground.matM = MathCat.mat4Apply(
 if ( module.hot ) {
   module.hot.accept( './shaders/background.frag', () => {
     const frag = require( './shaders/background.frag' );
-    passBackground.setProgram( { frag } );
+    passBackground.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
   } );
 }
 
@@ -211,7 +258,26 @@ passEditor.input = screenCaptureTexture.getTexture();
 if ( module.hot ) {
   module.hot.accept( './shaders/editor.frag', () => {
     const frag = require( './shaders/editor.frag' );
-    passEditor.setProgram( { frag } );
+    passEditor.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
+  } );
+}
+
+const passError = new PlanePass( glCat, {
+  frag: require( './shaders/error.frag' )
+} );
+passError.matM = MathCat.mat4Apply(
+  MathCat.mat4Translate( [ 0.0, 0.0, 0.4 ] ),
+  MathCat.mat4Scale( [ 3.0, 1.5, 1.0 ] ),
+);
+passError.input = textureErrorLayer;
+if ( module.hot ) {
+  module.hot.accept( './shaders/error.frag', () => {
+    const frag = require( './shaders/error.frag' );
+    passError.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
   } );
 }
 
@@ -243,7 +309,9 @@ passRaymarch.inputTextures.samplerRandomStatic = randomTextureStatic.getTexture(
 if ( module.hot ) {
   module.hot.accept( './shaders/raymarch.frag', () => {
     const frag = require( './shaders/raymarch.frag' );
-    passRaymarch.setProgram( { frag } );
+    passRaymarch.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
   } );
 }
 
@@ -259,7 +327,9 @@ passShade.inputTextures.samplerShadow = fbShadow.getTexture()!;
 if ( module.hot ) {
   module.hot.accept( './shaders/shade.frag', () => {
     const frag = require( './shaders/shade.frag' );
-    passShade.setProgram( { frag } );
+    passShade.setProgram( { frag } )
+      .then( () => errorLayer.setText( null ) )
+      .catch( ( e ) => errorLayer.setText( e.message ) );
   } );
 }
 
@@ -285,12 +355,36 @@ const passPost = new PostPass( glCat, {
   frag: require( './shaders/post.frag' ),
 } );
 passPost.beforeDraw = ( context: PassDrawContext ) => {
-  context.program.uniform1f( 'barrelAmp', 0.05 );
+  context.program.uniform1f( 'barrelAmp', midi( 'barrelAmp', { smoothFactor: 10.0 } ) );
 };
 if ( module.hot ) {
   module.hot.accept( './shaders/post.frag', () => {
     const frag = require( './shaders/post.frag' );
-    passPost.setProgram( { frag } );
+    passPost.setProgram( { frag } )
+    .then( () => errorLayer.setText( null ) )
+    .catch( ( e ) => errorLayer.setText( e.message ) );
+  } );
+}
+
+const passAscii = new PostPass( glCat, {
+  frag: require( './shaders/ascii.frag' ),
+} );
+passAscii.inputTextures.samplerAscii = textureAscii;
+passAscii.beforeDraw = ( context: PassDrawContext ) => {
+  context.program.uniform4f( 'asciiBg', 0.0, 0.0, 0.0, 1.0 );
+  context.program.uniform4f( 'asciiFg', 1.0, 1.0, 1.0, 1.0 );
+  context.program.uniform1f( 'asciiColorMode', 1.0 );
+  context.program.uniform1f( 'asciiTableLevels', 512.0 / 8.0 );
+  context.program.uniform2f( 'asciiTableReso', 512.0, 16.0 );
+  context.program.uniform2f( 'asciiCharSize', 8.0, 16.0 );
+  context.program.uniform1f( 'asciiZoom', 4.0 * midi( 'asciiZoom', { smoothFactor: 10.0 } ) );
+};
+if ( module.hot ) {
+  module.hot.accept( './shaders/ascii.frag', () => {
+    const frag = require( './shaders/ascii.frag' );
+    passAscii.setProgram( { frag } )
+    .then( () => errorLayer.setText( null ) )
+    .catch( ( e ) => errorLayer.setText( e.message ) );
   } );
 }
 
@@ -301,7 +395,9 @@ passFxaa.name = 'FXAA';
 
 // == loop here ====================================================================================
 const update = () => {
-  if ( !$<HTMLInputElement>( '#active' )!.checked ) {
+  const checkboxActive = $<HTMLInputElement>( '#active' );
+
+  if ( checkboxActive && !checkboxActive.checked ) {
     setTimeout( update, 100 );
     return;
   }
@@ -314,11 +410,17 @@ const update = () => {
   midiChain.update( clock.deltaTime );
   screenCaptureTexture.update();
 
+  errorLayer.draw( clock.deltaTime );
+  textureErrorLayer.setTexture( errorLayer.canvas );
+
   // -- let's render this --------------------------------------------------------------------------
   passManager.begin();
 
   // -- compute stuff ------------------------------------------------------------------------------
   passManager.render( passTrailsCompute );
+
+  passNormalMap.inputTextures.samplerRandomStatic = randomTextureStatic.getTexture();
+  passManager.render( passNormalMap );
 
   // passManager.render( 'piecesComputeReturn' );
   // passManager.render( 'piecesCompute' );
@@ -369,11 +471,17 @@ const update = () => {
   } );
 
   // -- foreground ---------------------------------------------------------------------------------
+  passError.isShadow = false;
+  passManager.render( passError, {
+    target: fbRender,
+    drawBuffers: 3,
+    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 0.0 ); },
+  } );
+
   passEditor.isShadow = false;
   passManager.render( passEditor, {
     target: fbRender,
     drawBuffers: 3,
-    preDraw: ( context ) => { context.glCat.clear( 0.0, 0.0, 0.0, 0.0 ); },
   } );
 
   passTrailsRender.isShadow = false;
@@ -437,6 +545,12 @@ const update = () => {
   } );
   swapPost.swap();
 
+  passAscii.inputTextures.sampler0 = swapPost.o.getTexture()!;
+  passManager.render( passAscii, {
+    target: swapPost.i
+  } );
+  swapPost.swap();
+
   passPost.inputTextures.sampler0 = swapPost.o.getTexture()!;
   passManager.render( passPost, {
     // target: swapPost.i,
@@ -463,7 +577,10 @@ update();
 // == keyboard is good =============================================================================
 window.addEventListener( 'keydown', ( event ) => {
   if ( event.which === 27 ) { // panic button
-    $<HTMLInputElement>( '#active' )!.checked = false;
+    const checkboxActive = $<HTMLInputElement>( '#active' )
+    if ( checkboxActive ) {
+      checkboxActive.checked = false;
+    }
   }
 
   if ( event.which === 32 ) { // play / pause

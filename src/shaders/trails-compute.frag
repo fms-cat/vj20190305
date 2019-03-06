@@ -14,6 +14,7 @@
 precision highp float;
 
 uniform float time;
+uniform float beat;
 
 uniform float trails;
 uniform float trailLength;
@@ -117,6 +118,7 @@ void main() {
     vec4 pos = texture2D( samplerPcompute, puv );
     vec4 vel = texture2D( samplerPcompute, puv + dpix * vec2( 1.0, 0.0 ) );
 
+    // pos.y += 9.0 * dt;
     // pos.xy += vec2( sin( 0.01 * time ), cos( 0.01 * time ) ) * dt;
     pos.z -= zVelocity * 10.0 * dt;
     // pos.xy = rotate2D( length( pos.xy ) * 0.1 * dt ) * pos.xy;
@@ -168,22 +170,27 @@ void main() {
   vel.zx += dt * 10.0 * noiseScale * vec2( -1.0, 1.0 ) * normalize( posFromSphereCenter.xz );
 
   // sphere
-  vel.xyz += dt * 100.00 * noiseScale * ( SPHERE_RADIUS - length( posFromSphereCenter ) ) * normalize( posFromSphereCenter );
+  vel.xyz += dt * 10.0 * noiseScale * ( SPHERE_RADIUS - length( posFromSphereCenter ) ) * normalize( posFromSphereCenter );
 
   // noise field
   vel.xyz += 100.0 * noiseScale * vec3(
-    noise( vec4( 0.8 * pos.xyz, 1.485 + sin( time * 0.1 ) + noisePhase ) ),
-    noise( vec4( 0.8 * pos.xyz, 3.485 + sin( time * 0.1 ) + noisePhase ) ),
-    noise( vec4( 0.8 * pos.xyz, 5.485 + sin( time * 0.1 ) + noisePhase ) )
+    noise( vec4( 0.3 * pos.xyz, 1.485 + sin( time * 0.1 ) + noisePhase ) ),
+    noise( vec4( 0.3 * pos.xyz, 3.485 + sin( time * 0.1 ) + noisePhase ) ),
+    noise( vec4( 0.3 * pos.xyz, 5.485 + sin( time * 0.1 ) + noisePhase ) )
   ) * dt;
 
   // resistance
   vel *= exp( -10.0 * dt );
 
-  // z
-  pos.z += 2.0 * dt;
+  vec3 v = vel.xyz;
+  float vmax = max( abs( v.x ), max( abs( v.y ), abs( v.z ) ) );
+  // v *= (
+  //   abs( v.x ) == vmax ? vec3( 1.0, 0.0, 0.0 ) :
+  //   abs( v.y ) == vmax ? vec3( 0.0, 1.0, 0.0 ) :
+  //   vec3( 0.0, 0.0, 1.0 )
+  // );
 
-  pos.xyz += velScale * vel.xyz * dt;
+  pos.xyz += velScale * v * dt;
   pos.w -= dt / PARTICLE_LIFE_LENGTH;
 
   gl_FragColor = (

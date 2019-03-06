@@ -71,7 +71,7 @@ void main() {
   vec4 dice = random( puv.yy * 182.92 );
   vCol = (
     dice.y < 0.8
-    ? pow( catColor( TAU * ( ( dice.x * 2.0 - 1.0 ) * colorVar + colorOffset ) ), vec3( 2.0 ) )
+    ? pow( catColor( TAU * ( ( dice.x * 2.0 - 1.0 ) * colorVar + 0.6 + colorOffset ) ), vec3( 2.0 ) )
     : vec3( 0.4 )
   );
 

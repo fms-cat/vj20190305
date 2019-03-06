@@ -25,6 +25,11 @@ uniform sampler2D sampler1;
 uniform sampler2D sampler2;
 uniform sampler2D samplerShadow;
 
+// == commons ======================================================================================
+vec3 catColor( float t ) {
+  return 0.5 + 0.5 * cos( t + vec3( 0.0, 4.0, 2.0 ) * PI / 3.0 );
+}
+
 // == struct: isect ================================================================================
 struct Isect {
   vec3 pos;
@@ -63,14 +68,14 @@ float getEdge( vec2 _uv ) {
   vec4 tex2x = texture2D( sampler2, _uv + vec2( f, 0.0 ) / resolution );
   vec4 tex2y = texture2D( sampler2, _uv + vec2( 0.0, f ) / resolution );
 
-  float validx = tex2.w == tex2x.w ? 1.0 : 0.0;
-  float validy = tex2.w == tex2y.w ? 1.0 : 0.0;
+  float validx = tex0.w == tex0x.w ? 1.0 : 0.0;
+  float validy = tex0.w == tex0y.w ? 1.0 : 0.0;
 
   return (
-    abs( dot( rayDir, tex0x.xyz ) - dot( rayDir, tex0.xyz ) ) / rayLen * validx +
-    abs( dot( rayDir, tex0y.xyz ) - dot( rayDir, tex0.xyz ) ) / rayLen * validy +
-    length( tex1x.xyz - tex1.xyz ) * validx +
-    length( tex1y.xyz - tex1.xyz ) * validy
+    abs( dot( rayDir, tex1x.xyz ) - dot( rayDir, tex1.xyz ) ) / rayLen * validx +
+    abs( dot( rayDir, tex1y.xyz ) - dot( rayDir, tex1.xyz ) ) / rayLen * validy +
+    length( tex2x.xyz - tex2.xyz ) * validx +
+    length( tex2y.xyz - tex2.xyz ) * validy
   );
 }
 
@@ -160,7 +165,8 @@ void main() {
     float sh = mix( 0.2, 1.0, shadow( isect ) );
     col = isect.props.xyz * sh;
   } else if ( isect.mtl == 2 ) {
-    col = radiance( isect, isect.props.xyz, vec3( 0.01 ), 0.1 );
+    col = radiance( isect, isect.props.xyz, vec3( 0.1 ), 0.3 );
+    col += 5.0 * smoothstep( 1.1, 1.4, getEdge( uv ) ) * catColor( 4.0 );
   } else {
     col = vec3( 0.0, 0.0, 0.0 );
   }
