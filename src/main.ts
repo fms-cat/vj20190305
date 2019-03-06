@@ -219,19 +219,6 @@ const swapPost = new Swap(
   glCat.lazyFramebuffer( width, height, true )!
 );
 
-const passNormalMap = new PostPass( glCat, {
-  frag: require( './shaders/normalmap.frag' )
-} );
-passNormalMap.framebuffer = glCat.lazyFramebuffer( 1024, 1024, true )!;
-if ( module.hot ) {
-  module.hot.accept( './shaders/normalmap.frag', () => {
-    const frag = require( './shaders/normalmap.frag' );
-    passNormalMap.setProgram( { frag } )
-      .then( () => errorLayer.setText( null ) )
-      .catch( ( e ) => errorLayer.setText( e.message ) );
-  } );
-}
-
 const passBackground = new PlanePass( glCat, {
   frag: require( './shaders/background.frag' ),
 } );
@@ -419,15 +406,7 @@ const update = () => {
   // -- compute stuff ------------------------------------------------------------------------------
   passManager.render( passTrailsCompute );
 
-  passNormalMap.inputTextures.samplerRandomStatic = randomTextureStatic.getTexture();
-  passManager.render( passNormalMap );
-
-  // passManager.render( 'piecesComputeReturn' );
-  // passManager.render( 'piecesCompute' );
-
   // -- shadow -------------------------------------------------------------------------------------
-  // glCatPath.render( 'shadow' );
-
   passEditor.isShadow = true;
   passManager.render( passEditor, {
     target: fbShadow,
